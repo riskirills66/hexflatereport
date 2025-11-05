@@ -1,0 +1,10 @@
+{
+  "api_endpoints": ["https://api.hexaloom.com"],
+  "x_token": "this5_require4_trees1_fortress_9",
+  "admin_title": "Admin Panel",
+  "web_report_title": "Web Report",
+  "main_title": "Agen Pulsa Web Report",
+  "favicon_path": "/assets/1024.png",
+  "nginx_port": 8690
+}
+

@@ -1,0 +1,19 @@
+# Cursor Rules
+
+# --- GENERAL CODE EDITING ---
+- When editing or fixing code, output only the raw, functional code.
+- Do NOT include:
+  - Markdown formatting or code fences (```)
+  - Explanations, reasoning, or summaries
+  - Status updates or completion messages
+  - Documentation, comments, or helper scripts unless explicitly requested
+  - Tutorials or example usage
+
+# --- EXCEPTIONS ---
+- Only include explanations or extra text if the user explicitly asks for them.
+
+# --- STYLE CONSISTENCY ---
+- Keep the code’s original indentation, formatting, and structure unless refactoring is requested.
+
+# --- OUTPUT FORMAT ---
+- Output must be **only the code**, with no text, markdown, or commentary of any kind.
