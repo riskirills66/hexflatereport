@@ -47,14 +47,16 @@ npm run build
 
 ## Vercel Deployment
 
-1. Import project di [Vercel](https://vercel.com)
+1. Fork repository ini ke akun Github Anda
 
-2. Vercel akan otomatis mendeteksi:
+2. Import fork di [Vercel](https://vercel.com)
+
+3. Vercel akan otomatis mendeteksi:
    - Framework: Vite
    - Build Command: `npm run build`
    - Output Directory: `dist`
 
-3. **Tambahkan Environment Variables** di Vercel:
+4. **Tambahkan Environment Variables** di Vercel:
    - Masuk ke Settings ? Environment Variables
    - Tambahkan semua variabel dari file `.env.example`:
      - `VITE_API_ENDPOINTS`
@@ -63,6 +65,36 @@ npm run build
      - `VITE_WEB_TITLE`
      - `VITE_WEB_FAVICON`
 
-4. Deploy - Vercel akan menangani sisanya secara otomatis
+5. Deploy - Vercel akan menangani sisanya secara otomatis
 
 File `vercel.json` sudah dikonfigurasi untuk single-page application routing.
+
+## Fetch Upstream Update (Jika ada update dari repository utama)
+
+1. Tambahkan remote upstream:
+
+```bash
+git remote add upstream https://github.com/riskirills66/hexflatereport.git
+
+```
+
+2. Fetch update dari upstream:
+
+```bash
+git fetch upstream
+```
+
+3. Merge update ke branch lokal Anda (misalnya `main`):
+
+```bash
+git checkout main
+git merge upstream/main
+```
+
+4. Push perubahan ke fork anda di github:
+
+```bash
+git push origin main
+```
+
+Dengan langkah fetch upstream ini, vercel akan otomatis mendeteksi perubahan dan memulai proses redeploy.
