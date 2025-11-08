@@ -1,10 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { RefreshCw, FileText } from 'lucide-react';
 import { getApiUrl, X_TOKEN_VALUE } from '../config/api';
 import { Spinner, Button, Table } from '../styles';
 
 interface TransactionManagementProps {
   authSeed: string;
+  onAnalyticsChange?: (analytics: TransactionAnalytics | null) => void;
+}
+
+export interface TransactionManagementRef {
+  analytics: TransactionAnalytics | null;
+  refresh: () => void;
 }
 
 interface Transaction {
@@ -24,13 +30,28 @@ interface TransactionAnalytics {
   failed_count: number;
 }
 
-const TransactionManagement: React.FC<TransactionManagementProps> = ({ authSeed }) => {
+const TransactionManagement = forwardRef<TransactionManagementRef, TransactionManagementProps>(({ authSeed, onAnalyticsChange }, ref) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [analytics, setAnalytics] = useState<TransactionAnalytics | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Expose analytics and refresh function to parent
+  useImperativeHandle(ref, () => ({
+    analytics,
+    refresh: () => {
+      setRefreshKey(prev => prev + 1);
+    }
+  }));
+
+  // Notify parent when analytics change
+  useEffect(() => {
+    if (onAnalyticsChange) {
+      onAnalyticsChange(analytics);
+    }
+  }, [analytics, onAnalyticsChange]);
 
   useEffect(() => {
     fetchTransactions();
@@ -211,24 +232,8 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ authSeed 
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Analytics Cards */}
       <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-lg font-medium text-gray-900">Manajemen Transaksi</h3>
-            <p className="text-sm text-gray-600">Lihat dan kelola transaksi terbaru</p>
-          </div>
-          <Button
-            onClick={refreshTransactions}
-            variant="primary"
-            size="md"
-            icon={<RefreshCw className="h-4 w-4" />}
-            loading={isLoading}
-          >
-            Refresh
-          </Button>
-        </div>
-        
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
             <div className="text-2xl font-bold text-blue-600">
@@ -297,6 +302,8 @@ const TransactionManagement: React.FC<TransactionManagementProps> = ({ authSeed 
       </div>
     </div>
   );
-};
+});
+
+TransactionManagement.displayName = 'TransactionManagement';
 
 export default TransactionManagement;

@@ -40,13 +40,14 @@ interface HadiahConfig {
 
 interface HadiahManagementProps {
   authSeed: string;
+  onStatsChange?: (total: number) => void;
 }
 
 export interface HadiahManagementRef {
   saveAllConfigurations: () => Promise<void>;
 }
 
-const HadiahManagement = forwardRef<HadiahManagementRef, HadiahManagementProps>(({ authSeed }, ref) => {
+const HadiahManagement = forwardRef<HadiahManagementRef, HadiahManagementProps>(({ authSeed, onStatsChange }, ref) => {
   const [hadiahConfig, setHadiahConfig] = useState<HadiahConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -67,6 +68,13 @@ const HadiahManagement = forwardRef<HadiahManagementRef, HadiahManagementProps>(
   useEffect(() => {
     loadHadiahConfig();
   }, [authSeed]);
+
+  // Notify parent when hadiahConfig changes
+  useEffect(() => {
+    if (onStatsChange && hadiahConfig) {
+      onStatsChange(hadiahConfig.metadata.total_hadiah || 0);
+    }
+  }, [hadiahConfig?.metadata.total_hadiah, onStatsChange]);
 
   const loadHadiahConfig = async () => {
     try {
@@ -274,21 +282,6 @@ const HadiahManagement = forwardRef<HadiahManagementRef, HadiahManagementProps>(
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <Gift className="h-6 w-6 text-indigo-500" />
-            <div>
-              <h1 className="text-lg font-semibold text-gray-900">Manajemen Hadiah</h1>
-              <p className="text-xs text-gray-600">
-                Kelola daftar hadiah yang dapat ditukar dengan poin ({hadiahConfig?.metadata.total_hadiah || 0} hadiah)
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Message */}
       {message && (
         <div className={`p-4 rounded-lg flex items-center space-x-2 ${

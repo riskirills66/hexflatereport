@@ -39,13 +39,14 @@ interface PromoConfig {
 
 interface PromoManagementProps {
   authSeed: string;
+  onStatsChange?: (total: number) => void;
 }
 
 export interface PromoManagementRef {
   saveAllConfigurations: () => Promise<void>;
 }
 
-const PromoManagement = forwardRef<PromoManagementRef, PromoManagementProps>(({ authSeed }, ref) => {
+const PromoManagement = forwardRef<PromoManagementRef, PromoManagementProps>(({ authSeed, onStatsChange }, ref) => {
   const [promoConfig, setPromoConfig] = useState<PromoConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -60,6 +61,13 @@ const PromoManagement = forwardRef<PromoManagementRef, PromoManagementProps>(({ 
   useEffect(() => {
     loadPromoConfig();
   }, [authSeed]);
+
+  // Notify parent when promoConfig changes
+  useEffect(() => {
+    if (onStatsChange && promoConfig) {
+      onStatsChange(promoConfig.metadata.total_promos || 0);
+    }
+  }, [promoConfig?.metadata.total_promos, onStatsChange]);
 
   const loadPromoConfig = async () => {
     try {
@@ -297,21 +305,6 @@ const PromoManagement = forwardRef<PromoManagementRef, PromoManagementProps>(({ 
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <Tag className="h-6 w-6 text-indigo-500" />
-            <div>
-              <h1 className="text-lg font-semibold text-gray-900">Manajemen Promo</h1>
-              <p className="text-xs text-gray-600">
-                Kelola daftar promo dan diskon ({promoConfig?.metadata.total_promos || 0} promo)
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Message */}
       {message && (
         <div className={`p-4 rounded-lg flex items-center space-x-2 ${

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import { getApiUrl, X_TOKEN_VALUE } from '../config/api';
 import { Spinner } from '../styles';
 import { Search, Shield, XCircle, RefreshCw, Calendar, Smartphone, Hash } from 'lucide-react';
@@ -24,9 +24,14 @@ interface SessionListResponse {
 
 interface SessionManagerProps {
   authSeed: string;
+  onStatsChange?: (total: number, displayed: number) => void;
 }
 
-const SessionManager: React.FC<SessionManagerProps> = ({ authSeed }) => {
+export interface SessionManagerRef {
+  refresh: () => void;
+}
+
+const SessionManager = forwardRef<SessionManagerRef, SessionManagerProps>(({ authSeed, onStatsChange }, ref) => {
   const [sessions, setSessions] = useState<AdminSessionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -112,6 +117,23 @@ const SessionManager: React.FC<SessionManagerProps> = ({ authSeed }) => {
       setIsLoadingMore(false);
     }
   };
+
+  // Notify parent when sessions or total changes
+  useEffect(() => {
+    if (onStatsChange) {
+      onStatsChange(total, sessions.length);
+    }
+  }, [total, sessions.length, onStatsChange]);
+
+  const refreshData = () => {
+    setCursor(undefined);
+    setSessions([]);
+    fetchSessions(true);
+  };
+
+  useImperativeHandle(ref, () => ({
+    refresh: refreshData,
+  }));
 
   const handleLoadMore = () => {
     if (!isLoadingMore && hasMore) {
@@ -215,24 +237,6 @@ const SessionManager: React.FC<SessionManagerProps> = ({ authSeed }) => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-medium text-gray-900">Manajemen Sesi</h3>
-          <p className="text-sm text-gray-600">Total sesi: {total} • {sessions.length} ditampilkan</p>
-        </div>
-        <button
-          onClick={() => {
-            setCursor(undefined);
-            setSessions([]);
-            fetchSessions(true);
-          }}
-          className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
-        >
-          <RefreshCw className="h-4 w-4" />
-          <span>Refresh</span>
-        </button>
-      </div>
-
       {message && (
         <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <p className="text-sm text-blue-700">{message}</p>
@@ -410,7 +414,9 @@ const SessionManager: React.FC<SessionManagerProps> = ({ authSeed }) => {
       </div>
     </div>
   );
-};
+});
+
+SessionManager.displayName = 'SessionManager';
 
 export default SessionManager;
 

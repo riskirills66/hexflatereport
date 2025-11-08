@@ -23,18 +23,22 @@ import {
   RocketIcon,
   ChevronDown,
   RefreshCw,
+  XCircle,
+  Eye,
+  EyeOff,
+  Filter,
 } from "lucide-react";
 import { DynamicScreenConfig } from "../types";
 import { SAMPLE_CONFIG } from "../data/sampleConfig";
 import EditorLayout from "./EditorLayout";
 import { getApiUrl, X_TOKEN_VALUE } from "../config/api";
 import MemberManagement, { MemberManagementRef } from "./MemberManagement";
-import TransactionManagement from "./TransactionManagement";
-import AnalyticsDashboard from "./AnalyticsDashboard";
-import SystemLogs from "./SystemLogs";
+import TransactionManagement, { TransactionManagementRef } from "./TransactionManagement";
+import AnalyticsDashboard, { AnalyticsDashboardRef } from "./AnalyticsDashboard";
+import SystemLogs, { SystemLogsRef } from "./SystemLogs";
 import SystemSettings, { SystemSettingsRef } from "./SystemSettings";
 import PrivacyPolicyEditor from "./PrivacyPolicyEditor";
-import FeedbackViewer from "./FeedbackViewer";
+import FeedbackViewer, { FeedbackViewerRef } from "./FeedbackViewer";
 import SecurityManagement from "./SecurityManagement";
 import HadiahManagement, { HadiahManagementRef } from "./HadiahManagement";
 import PromoManagement, { PromoManagementRef } from "./PromoManagement";
@@ -42,8 +46,8 @@ import BroadcastCenter, { BroadcastCenterRef } from "./BroadcastCenter";
 import AssetsManager from "./AssetsManager";
 import MarkdownEditor from "./MarkdownEditor";
 import ReleasePrep from "./ReleasePrep";
-import ChatManagement from "./ChatManagement";
-import SessionManager from "./SessionManager";
+import ChatManagement, { ChatManagementRef } from "./ChatManagement";
+import SessionManager, { SessionManagerRef } from "./SessionManager";
 import { formatJSONForExport, formatJSONForAPI } from "../utils/jsonFormatter";
 
 interface AdminDashboardProps {
@@ -135,6 +139,46 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const memberManagementRef = useRef<MemberManagementRef>(null);
   const [memberStats, setMemberStats] = useState<{ total: number; loaded: number } | null>(null);
 
+  // Transaction management ref
+  const transactionManagementRef = useRef<TransactionManagementRef>(null);
+  const [transactionAnalytics, setTransactionAnalytics] = useState<{
+    total_today: number;
+    success_count: number;
+    process_count: number;
+    failed_count: number;
+  } | null>(null);
+
+  // Chat management ref
+  const chatManagementRef = useRef<ChatManagementRef>(null);
+  const [chatConversation, setChatConversation] = useState<{
+    user_name: string;
+    user_id: string;
+    status: string;
+    resolved: number;
+  } | null>(null);
+  const [chatConnectionStatus, setChatConnectionStatus] = useState<string>("disconnected");
+
+  // Analytics dashboard ref
+  const analyticsDashboardRef = useRef<AnalyticsDashboardRef>(null);
+
+  // Session manager ref
+  const sessionManagerRef = useRef<SessionManagerRef>(null);
+  const [sessionStats, setSessionStats] = useState<{ total: number; displayed: number } | null>(null);
+
+  // Hadiah management stats
+  const [hadiahStats, setHadiahStats] = useState<{ total: number } | null>(null);
+
+  // Promo management stats
+  const [promoStats, setPromoStats] = useState<{ total: number } | null>(null);
+
+  // Feedback viewer ref
+  const feedbackViewerRef = useRef<FeedbackViewerRef>(null);
+  const [feedbackStats, setFeedbackStats] = useState<{ total: number } | null>(null);
+
+  // System logs ref
+  const systemLogsRef = useRef<SystemLogsRef>(null);
+  const [systemLogsStats, setSystemLogsStats] = useState<{ total: number } | null>(null);
+
   // Chat license status
   const [chatLicenseStatus, setChatLicenseStatus] = useState<{
     is_licensed: boolean;
@@ -210,6 +254,56 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   useEffect(() => {
     if (activeSection !== "users") {
       setMemberStats(null);
+    }
+  }, [activeSection]);
+
+  // Reset transaction analytics when switching away from transactions section
+  useEffect(() => {
+    if (activeSection !== "transactions") {
+      setTransactionAnalytics(null);
+    }
+  }, [activeSection]);
+
+  // Reset chat conversation when switching away from chat section
+  useEffect(() => {
+    if (activeSection !== "chat") {
+      setChatConversation(null);
+      setChatConnectionStatus("disconnected");
+    }
+  }, [activeSection]);
+
+  // Reset session stats when switching away from session-manager section
+  useEffect(() => {
+    if (activeSection !== "session-manager") {
+      setSessionStats(null);
+    }
+  }, [activeSection]);
+
+  // Reset hadiah stats when switching away from hadiah section
+  useEffect(() => {
+    if (activeSection !== "hadiah") {
+      setHadiahStats(null);
+    }
+  }, [activeSection]);
+
+  // Reset promo stats when switching away from promo section
+  useEffect(() => {
+    if (activeSection !== "promo") {
+      setPromoStats(null);
+    }
+  }, [activeSection]);
+
+  // Reset feedback stats when switching away from feedback-viewer section
+  useEffect(() => {
+    if (activeSection !== "feedback-viewer") {
+      setFeedbackStats(null);
+    }
+  }, [activeSection]);
+
+  // Reset system logs stats when switching away from logs section
+  useEffect(() => {
+    if (activeSection !== "logs") {
+      setSystemLogsStats(null);
     }
   }, [activeSection]);
 
@@ -723,7 +817,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       label: "Transaksi",
       icon: <CreditCard className="h-5 w-5" />,
       description: "Lihat dan kelola transaksi",
-      component: <TransactionManagement authSeed={authSeed} />,
+      component: (
+        <TransactionManagement
+          authSeed={authSeed}
+          ref={transactionManagementRef}
+          onAnalyticsChange={(analytics) => {
+            if (analytics) {
+              setTransactionAnalytics({
+                total_today: analytics.total_today,
+                success_count: analytics.success_count,
+                process_count: analytics.process_count,
+                failed_count: analytics.failed_count,
+              });
+            } else {
+              setTransactionAnalytics(null);
+            }
+          }}
+        />
+      ),
     },
     {
       id: "notifications",
@@ -746,7 +857,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             label: "Customer Support",
             icon: <MessageSquare className="h-5 w-5" />,
             description: "Kelola percakapan dengan pelanggan",
-            component: <ChatManagement authSeed={authSeed} />,
+            component: (
+              <ChatManagement
+                authSeed={authSeed}
+                ref={chatManagementRef}
+                onConversationChange={(conversation) => {
+                  if (conversation) {
+                    setChatConversation({
+                      user_name: conversation.user_name,
+                      user_id: conversation.user_id,
+                      status: conversation.status,
+                      resolved: conversation.resolved,
+                    });
+                  } else {
+                    setChatConversation(null);
+                  }
+                }}
+                onConnectionStatusChange={(status) => setChatConnectionStatus(status)}
+              />
+            ),
           },
         ]
       : []),
@@ -755,14 +884,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       label: "Analitik",
       icon: <BarChart3 className="h-5 w-5" />,
       description: "Lihat analitik dan laporan aplikasi",
-      component: <AnalyticsDashboard authSeed={authSeed} />,
+      component: <AnalyticsDashboard authSeed={authSeed} ref={analyticsDashboardRef} />,
     },
     {
       id: "session-manager",
       label: "Manajemen Sesi",
       icon: <Activity className="h-5 w-5" />,
       description: "Kelola semua sesi pengguna",
-      component: <SessionManager authSeed={authSeed} />,
+      component: (
+        <SessionManager
+          authSeed={authSeed}
+          ref={sessionManagerRef}
+          onStatsChange={(total, displayed) => setSessionStats({ total, displayed })}
+        />
+      ),
     },
     {
       id: "system",
@@ -775,9 +910,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       id: "hadiah",
       label: "Manajemen Hadiah",
       icon: <Store className="h-5 w-5" />,
-      description: "Kelola daftar hadiah yang dapat ditukar dengan poin",
+      description: "Kelola daftar hadiah",
       component: (
-        <HadiahManagement authSeed={authSeed} ref={hadiahManagementRef} />
+        <HadiahManagement
+          authSeed={authSeed}
+          ref={hadiahManagementRef}
+          onStatsChange={(total) => setHadiahStats({ total })}
+        />
       ),
     },
     {
@@ -786,7 +925,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       icon: <Tag className="h-5 w-5" />,
       description: "Kelola daftar promo dan diskon",
       component: (
-        <PromoManagement authSeed={authSeed} ref={promoManagementRef} />
+        <PromoManagement
+          authSeed={authSeed}
+          ref={promoManagementRef}
+          onStatsChange={(total) => setPromoStats({ total })}
+        />
       ),
     },
     {
@@ -835,7 +978,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       icon: <MessageSquare className="h-5 w-5" />,
       description: "Lihat dan kelola feedback dari pengguna",
       component: (
-        <FeedbackViewer authSeed={authSeed} onNavigate={setActiveSection} />
+        <FeedbackViewer
+          authSeed={authSeed}
+          onNavigate={setActiveSection}
+          ref={feedbackViewerRef}
+          onStatsChange={(total) => setFeedbackStats({ total })}
+        />
       ),
     },
     {
@@ -843,7 +991,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       label: "Log Sistem",
       icon: <Terminal className="h-5 w-5" />,
       description: "Lihat log dan kesalahan sistem",
-      component: <SystemLogs authSeed={authSeed} />,
+      component: (
+        <SystemLogs
+          authSeed={authSeed}
+          ref={systemLogsRef}
+          onStatsChange={(total) => setSystemLogsStats({ total })}
+        />
+      ),
     },
     // Only show security menu for super admins
     ...(currentAdminInfo?.is_super_admin
@@ -952,36 +1106,299 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       >
         {/* Top Bar */}
         <div className="bg-white shadow-sm border-b border-gray-200 px-4 py-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              {/* Mobile menu button */}
-              {isMobile && (
-                <button
-                  onClick={() => setSidebarOpen(true)}
-                  className="mr-3 p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                >
-                  <Menu className="h-5 w-5" />
-                </button>
+          {isMobile ? (
+            /* Mobile Layout */
+            <div className="flex flex-col gap-2">
+              {/* Top Row: Menu + Icon + Buttons */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center min-w-0 flex-1">
+                  <button
+                    onClick={() => setSidebarOpen(true)}
+                    className="mr-2 p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 flex-shrink-0"
+                  >
+                    <Menu className="h-5 w-5" />
+                  </button>
+                  {activeMenuItem?.icon && (
+                    <div className="flex items-center flex-shrink-0 mr-2">
+                      {activeMenuItem.icon}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <h1 className="text-base font-semibold text-gray-900 truncate">
+                      {activeSection === "analytics"
+                        ? "Dashboard Analitik"
+                        : activeSection === "session-manager"
+                          ? "Manajemen Sesi"
+                          : activeSection === "hadiah"
+                            ? "Manajemen Hadiah"
+                            : activeSection === "promo"
+                              ? "Manajemen Promo"
+                              : activeSection === "feedback-viewer"
+                                ? "Feedback"
+                                : activeSection === "logs"
+                                  ? "Log Sistem"
+                                  : activeSection === "chat" && chatConversation
+                                    ? chatConversation.user_name
+                                    : activeMenuItem?.label}
+                    </h1>
+                  </div>
+                </div>
+                {activeSection === "logs" && systemLogsRef.current && (
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    <button
+                      onClick={() => systemLogsRef.current?.toggleFilter()}
+                      className={`inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                        systemLogsRef.current.showFilters
+                          ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <Filter className="h-4 w-4 mr-1" />
+                      <span>Filter</span>
+                    </button>
+                    <button
+                      onClick={() => systemLogsRef.current?.refresh()}
+                      className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors"
+                    >
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                      <span>Refresh</span>
+                    </button>
+                  </div>
+                )}
+                {activeSection === "feedback-viewer" && feedbackViewerRef.current && (
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    <button
+                      onClick={() => feedbackViewerRef.current?.toggleTechnicalDetails()}
+                      className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-md transition-colors"
+                    >
+                      <Eye className="h-4 w-4 mr-1" />
+                      <span>Tampilkan Detail Teknis</span>
+                    </button>
+                    <button
+                      onClick={() => feedbackViewerRef.current?.refresh()}
+                      className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors"
+                    >
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                      <span>Refresh</span>
+                    </button>
+                  </div>
+                )}
+                {activeSection === "analytics" && (
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    <button
+                      onClick={() => analyticsDashboardRef.current?.refresh()}
+                      className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors"
+                    >
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                      <span>Refresh</span>
+                    </button>
+                  </div>
+                )}
+                {activeSection === "session-manager" && (
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    <button
+                      onClick={() => sessionManagerRef.current?.refresh()}
+                      className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+                    >
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                      <span>Refresh</span>
+                    </button>
+                  </div>
+                )}
+                {activeSection === "chat" && chatConversation && chatManagementRef.current && (
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    <button
+                      onClick={() => chatManagementRef.current?.resolveConversation(
+                        chatManagementRef.current.selectedConversation!.id,
+                        chatConversation.resolved === 0
+                      )}
+                      className={`inline-flex items-center justify-center w-8 h-8 border text-xs font-medium rounded transition-colors ${
+                        chatConversation.resolved === 1
+                          ? "border-green-300 text-green-700 bg-green-50 hover:bg-green-100"
+                          : "border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100"
+                      }`}
+                      title={chatConversation.resolved === 1 ? "Unresolve conversation" : "Resolve conversation"}
+                    >
+                      {chatConversation.resolved === 1 ? (
+                        <XCircle className="h-4 w-4" />
+                      ) : (
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+              {/* Subtitle Row */}
+              {activeSection === "analytics" ? (
+                <p className="text-xs text-gray-600 truncate">
+                  Analisis transaksi 7 hari terakhir
+                </p>
+              ) : activeSection === "session-manager" && sessionStats ? (
+                <p className="text-xs text-gray-600 truncate">
+                  Total sesi: {sessionStats.total} • {sessionStats.displayed} ditampilkan
+                </p>
+              ) : activeSection === "hadiah" && hadiahStats ? (
+                <p className="text-xs text-gray-600 truncate">
+                  Kelola daftar hadiah ({hadiahStats.total} hadiah)
+                </p>
+              ) : activeSection === "promo" && promoStats ? (
+                <p className="text-xs text-gray-600 truncate">
+                  Kelola daftar promo dan diskon ({promoStats.total} promo)
+                </p>
+              ) : activeSection === "feedback-viewer" && feedbackStats ? (
+                <p className="text-xs text-gray-600 truncate">
+                  Kelola feedback dari pengguna aplikasi ({feedbackStats.total} feedback)
+                </p>
+              ) : activeSection === "logs" && systemLogsStats ? (
+                <p className="text-xs text-gray-600 truncate">
+                  Aktivitas admin dan log sistem ({systemLogsStats.total} total)
+                </p>
+              ) : activeSection === "users" && memberStats ? (
+                <p className="text-xs text-gray-600 truncate">
+                  Kelola {memberStats.total} member • {memberStats.loaded} dimuat
+                </p>
+              ) : activeSection === "transactions" && transactionAnalytics ? (
+                <p className="text-xs text-gray-600 truncate">
+                  Lihat dan kelola transaksi terbaru
+                </p>
+              ) : activeSection === "chat" && chatConversation ? (
+                <div className="flex items-center gap-2 min-w-0">
+                  <p className="text-xs text-gray-600 truncate min-w-0 flex-1">
+                    {chatConversation.user_id} • {chatConversation.status}
+                  </p>
+                  <div className="flex items-center flex-shrink-0 gap-1.5">
+                    <div
+                      className={`w-2 h-2 rounded-full ${
+                        chatConnectionStatus === "connected"
+                          ? "bg-green-500"
+                          : chatConnectionStatus === "connecting"
+                            ? "bg-yellow-500"
+                            : chatConnectionStatus === "error"
+                              ? "bg-red-500"
+                              : "bg-gray-400"
+                      }`}
+                    ></div>
+                    <span className="text-xs text-gray-500 whitespace-nowrap">
+                      {chatConnectionStatus === "connected"
+                        ? "Connected"
+                        : chatConnectionStatus === "connecting"
+                          ? "Connecting..."
+                          : chatConnectionStatus === "error"
+                            ? "Error"
+                            : "Disconnected"}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-600 truncate">
+                  {activeMenuItem?.description}
+                </p>
               )}
-              <div>
-                <h1 className="text-lg font-semibold text-gray-900">
-                  {activeMenuItem?.label}
+            </div>
+          ) : (
+            /* Desktop Layout */
+            <div className="grid grid-cols-3 items-center gap-4">
+              {/* Left: Mobile menu button + Icon */}
+              <div className="flex items-center">
+                {activeMenuItem?.icon && (
+                  <div className="flex items-center">
+                    {activeMenuItem.icon}
+                  </div>
+                )}
+              </div>
+
+              {/* Center: Title and Subtitle */}
+              <div className="text-center min-w-0">
+                <h1 className="text-lg font-semibold text-gray-900 truncate">
+                  {activeSection === "analytics"
+                    ? "Dashboard Analitik"
+                    : activeSection === "session-manager"
+                      ? "Manajemen Sesi"
+                      : activeSection === "hadiah"
+                        ? "Manajemen Hadiah"
+                        : activeSection === "promo"
+                          ? "Manajemen Promo"
+                          : activeSection === "feedback-viewer"
+                            ? "Feedback"
+                            : activeSection === "logs"
+                              ? "Log Sistem"
+                              : activeSection === "chat" && chatConversation
+                                ? chatConversation.user_name
+                                : activeMenuItem?.label}
                 </h1>
-                {activeSection === "users" && memberStats ? (
-                  <p className="text-xs text-gray-600">
+                {activeSection === "analytics" ? (
+                  <p className="text-xs text-gray-600 truncate">
+                    Analisis transaksi 7 hari terakhir
+                  </p>
+                ) : activeSection === "session-manager" && sessionStats ? (
+                  <p className="text-xs text-gray-600 truncate">
+                    Total sesi: {sessionStats.total} • {sessionStats.displayed} ditampilkan
+                  </p>
+                ) : activeSection === "hadiah" && hadiahStats ? (
+                  <p className="text-xs text-gray-600 truncate">
+                    Kelola daftar hadiah ({hadiahStats.total} hadiah)
+                  </p>
+                ) : activeSection === "promo" && promoStats ? (
+                  <p className="text-xs text-gray-600 truncate">
+                    Kelola daftar promo dan diskon ({promoStats.total} promo)
+                  </p>
+                ) : activeSection === "feedback-viewer" && feedbackStats ? (
+                  <p className="text-xs text-gray-600 truncate">
+                    Kelola feedback dari pengguna aplikasi ({feedbackStats.total} feedback)
+                  </p>
+                ) : activeSection === "logs" && systemLogsStats ? (
+                  <p className="text-xs text-gray-600 truncate">
+                    Aktivitas admin dan log sistem ({systemLogsStats.total} total)
+                  </p>
+                ) : activeSection === "users" && memberStats ? (
+                  <p className="text-xs text-gray-600 truncate">
                     Kelola {memberStats.total} member • {memberStats.loaded} dimuat
                   </p>
+                ) : activeSection === "transactions" && transactionAnalytics ? (
+                  <p className="text-xs text-gray-600 truncate">
+                    Lihat dan kelola transaksi terbaru
+                  </p>
+                ) : activeSection === "chat" && chatConversation ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <p className="text-xs text-gray-600 truncate">
+                      {chatConversation.user_id} • {chatConversation.status}
+                    </p>
+                    <div className="flex items-center">
+                      <div
+                        className={`w-2 h-2 rounded-full mr-1.5 ${
+                          chatConnectionStatus === "connected"
+                            ? "bg-green-500"
+                            : chatConnectionStatus === "connecting"
+                              ? "bg-yellow-500"
+                              : chatConnectionStatus === "error"
+                                ? "bg-red-500"
+                                : "bg-gray-400"
+                        }`}
+                      ></div>
+                      <span className="text-xs text-gray-500">
+                        {chatConnectionStatus === "connected"
+                          ? "Connected"
+                          : chatConnectionStatus === "connecting"
+                            ? "Connecting..."
+                            : chatConnectionStatus === "error"
+                              ? "Error"
+                              : "Disconnected"}
+                      </span>
+                    </div>
+                  </div>
                 ) : (
-                  <p className="text-xs text-gray-600">
+                  <p className="text-xs text-gray-600 truncate">
                     {activeMenuItem?.description}
                   </p>
                 )}
               </div>
-            </div>
 
-            {/* Member Management Refresh Button - Only show for users section */}
-            {activeSection === "users" && (
-              <div className="flex items-center gap-2">
+              {/* Right: Action Buttons */}
+              <div className="flex items-center justify-end gap-2">
+              {/* Member Management Refresh Button - Only show for users section */}
+              {activeSection === "users" && (
                 <button
                   onClick={() => memberManagementRef.current?.refresh()}
                   className="flex items-center space-x-2 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
@@ -989,12 +1406,54 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <RefreshCw className="h-4 w-4" />
                   <span>Refresh</span>
                 </button>
-              </div>
-            )}
+              )}
 
-            {/* Menu Editor Buttons - Only show for menu-editor section */}
-            {activeSection === "menu-editor" && (
-              <div className="flex items-center gap-2">
+              {/* Transaction Management Refresh Button - Only show for transactions section */}
+              {activeSection === "transactions" && (
+                <button
+                  onClick={() => transactionManagementRef.current?.refresh()}
+                  className="flex items-center space-x-2 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  <span>Refresh</span>
+                </button>
+              )}
+
+              {/* Chat Management Buttons - Only show for chat section */}
+              {activeSection === "chat" && chatConversation && chatManagementRef.current && (
+                <>
+                  <button
+                    onClick={() => chatManagementRef.current?.resolveConversation(
+                      chatManagementRef.current.selectedConversation!.id,
+                      chatConversation.resolved === 0
+                    )}
+                    className={`inline-flex items-center px-3 py-1.5 border text-xs font-medium rounded transition-colors ${
+                      chatConversation.resolved === 1
+                        ? "border-green-300 text-green-700 bg-green-50 hover:bg-green-100"
+                        : "border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100"
+                    }`}
+                    title={chatConversation.resolved === 1 ? "Unresolve conversation" : "Resolve conversation"}
+                  >
+                    {chatConversation.resolved === 1 ? (
+                      <>
+                        <XCircle className="h-3 w-3 mr-1" />
+                        Unresolve
+                      </>
+                    ) : (
+                      <>
+                        <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Resolve
+                      </>
+                    )}
+                  </button>
+                </>
+              )}
+
+              {/* Menu Editor Buttons - Only show for menu-editor section */}
+              {activeSection === "menu-editor" && (
+                <div className="flex items-center gap-2">
                 {/* Menu Selection Dropdown */}
                 <div className="relative">
                   <select
@@ -1106,12 +1565,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </span>
                   </div>
                 )}
-              </div>
-            )}
+                </div>
+              )}
 
-            {/* Security Management Save Button - Only show for security section */}
-            {activeSection === "security" && (
-              <div className="flex items-center gap-2">
+              {/* Security Management Save Button - Only show for security section */}
+              {activeSection === "security" && (
+                <div className="flex items-center gap-2">
                 {/* Save All Configurations */}
                 <button
                   onClick={handleSaveAllConfigurations}
@@ -1126,12 +1585,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   )}
                   Simpan Semua Konfigurasi
                 </button>
-              </div>
-            )}
+                </div>
+              )}
 
-            {/* System Settings Save Button - Only show for system section */}
-            {activeSection === "system" && (
-              <div className="flex items-center gap-2">
+              {/* System Settings Save Button - Only show for system section */}
+              {activeSection === "system" && (
+                <div className="flex items-center gap-2">
                 {/* Save All System Settings */}
                 <button
                   onClick={handleSaveAllSystemSettings}
@@ -1146,12 +1605,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   )}
                   Simpan Semua Pengaturan
                 </button>
-              </div>
-            )}
+                </div>
+              )}
 
-            {/* Hadiah Management Save Button - Only show for hadiah section */}
-            {activeSection === "hadiah" && (
-              <div className="flex items-center gap-2">
+              {/* Hadiah Management Save Button - Only show for hadiah section */}
+              {activeSection === "hadiah" && (
+                <div className="flex items-center gap-2">
                 {/* Save All Hadiah */}
                 <button
                   onClick={handleSaveAllHadiah}
@@ -1166,12 +1625,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   )}
                   Simpan Semua Hadiah
                 </button>
-              </div>
-            )}
+                </div>
+              )}
 
-            {/* Promo Management Save Button - Only show for promo section */}
-            {activeSection === "promo" && (
-              <div className="flex items-center gap-2">
+              {/* Promo Management Save Button - Only show for promo section */}
+              {activeSection === "promo" && (
+                <div className="flex items-center gap-2">
                 {/* Save All Promo */}
                 <button
                   onClick={handleSaveAllPromo}
@@ -1189,30 +1648,98 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             )}
 
-            {/* Broadcast Send Button - Only show for notifications section */}
-            {activeSection === "notifications" && (
-              <div className="flex items-center gap-2">
+              {/* Broadcast Send Button - Only show for notifications section */}
+              {activeSection === "notifications" && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => broadcastCenterRef.current?.sendBroadcast()}
+                    disabled={!canSendBroadcast}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-700 disabled:opacity-50 transition-colors font-medium"
+                    title="Send broadcast message"
+                  >
+                    {isBroadcastSending ? (
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                    ) : (
+                      <Megaphone size={14} />
+                    )}
+                    Kirim Broadcast
+                  </button>
+                </div>
+              )}
+
+              {/* Analytics Refresh Button - Only show for analytics section */}
+              {activeSection === "analytics" && (
                 <button
-                  onClick={() => broadcastCenterRef.current?.sendBroadcast()}
-                  disabled={!canSendBroadcast}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-700 disabled:opacity-50 transition-colors font-medium"
-                  title="Send broadcast message"
+                  onClick={() => analyticsDashboardRef.current?.refresh()}
+                  className="flex items-center space-x-2 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors"
                 >
-                  {isBroadcastSending ? (
-                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                  ) : (
-                    <Megaphone size={14} />
-                  )}
-                  Kirim Broadcast
+                  <RefreshCw className="h-4 w-4" />
+                  <span>Refresh</span>
                 </button>
+              )}
+
+              {/* Session Manager Refresh Button - Only show for session-manager section */}
+              {activeSection === "session-manager" && (
+                <button
+                  onClick={() => sessionManagerRef.current?.refresh()}
+                  className="flex items-center space-x-2 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  <span>Refresh</span>
+                </button>
+              )}
+
+              {/* Feedback Viewer Buttons - Only show for feedback-viewer section */}
+              {activeSection === "feedback-viewer" && feedbackViewerRef.current && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => feedbackViewerRef.current?.toggleTechnicalDetails()}
+                    className="flex items-center space-x-2 px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-md transition-colors"
+                  >
+                    <Eye className="h-4 w-4" />
+                    <span>Tampilkan Detail Teknis</span>
+                  </button>
+                  <button
+                    onClick={() => feedbackViewerRef.current?.refresh()}
+                    className="flex items-center space-x-2 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    <span>Refresh</span>
+                  </button>
+                </div>
+              )}
+
+              {/* System Logs Buttons - Only show for logs section */}
+              {activeSection === "logs" && systemLogsRef.current && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => systemLogsRef.current?.toggleFilter()}
+                    className={`flex items-center space-x-2 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                      systemLogsRef.current.showFilters
+                        ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    <Filter className="h-4 w-4" />
+                    <span>Filter</span>
+                  </button>
+                  <button
+                    onClick={() => systemLogsRef.current?.refresh()}
+                    className="flex items-center space-x-2 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    <span>Refresh</span>
+                  </button>
+                </div>
+              )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Content Area */}
         <div
-          className={`flex-1 overflow-y-auto ${activeSection === "menu-editor" || activeSection === "chat" ? "p-0" : "p-6"}`}
+          className={`flex-1 overflow-y-auto ${activeSection === "menu-editor" ? "p-0" : "p-6"}`}
         >
           {activeMenuItem?.component}
         </div>

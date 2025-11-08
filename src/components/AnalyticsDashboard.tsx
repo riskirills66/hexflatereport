@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { RefreshCw, TrendingUp, TrendingDown, Activity, Package } from 'lucide-react';
 import { 
   LineChart, 
@@ -19,6 +19,10 @@ import { getApiUrl, X_TOKEN_VALUE } from '../config/api';
 
 interface AnalyticsDashboardProps {
   authSeed: string;
+}
+
+export interface AnalyticsDashboardRef {
+  refresh: () => void;
 }
 
 interface DailyTransactionData {
@@ -59,7 +63,7 @@ interface ProductCategoryData {
 
 const COLORS = ['#10B981', '#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6', '#06B6D4', '#F97316', '#EC4899', '#84CC16', '#6366F1'];
 
-const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ authSeed }) => {
+const AnalyticsDashboard = forwardRef<AnalyticsDashboardRef, AnalyticsDashboardProps>(({ authSeed }, ref) => {
   const [trendsData, setTrendsData] = useState<TransactionTrends | null>(null);
   const [productTrendsData, setProductTrendsData] = useState<ProductTrends | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -155,6 +159,10 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ authSeed }) => 
     setRefreshKey(prev => prev + 1);
   };
 
+  useImperativeHandle(ref, () => ({
+    refresh: refreshData,
+  }));
+
 
 
   const formatDate = (dateString: string) => {
@@ -218,21 +226,6 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ authSeed }) => 
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Dashboard Analitik</h2>
-          <p className="text-gray-600">Analisis transaksi 7 hari terakhir</p>
-        </div>
-        <button
-          onClick={refreshData}
-          className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
-        >
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </button>
-      </div>
-
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
@@ -493,6 +486,8 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ authSeed }) => 
       </div>
     </div>
   );
-};
+});
+
+AnalyticsDashboard.displayName = 'AnalyticsDashboard';
 
 export default AnalyticsDashboard;

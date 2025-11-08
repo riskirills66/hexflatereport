@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef } from "react";
 import {
   MessageSquare,
   Send,
@@ -25,6 +25,15 @@ import { useWebSocket } from "../hooks/useWebSocket";
 
 interface ChatManagementProps {
   authSeed: string;
+  onConversationChange?: (conversation: ChatConversation | null) => void;
+  onConnectionStatusChange?: (status: string) => void;
+}
+
+export interface ChatManagementRef {
+  selectedConversation: ChatConversation | null;
+  resolveConversation: (conversationId: string, resolved: boolean) => Promise<void>;
+  showNotificationSettings: () => void;
+  connectionStatus: string;
 }
 
 interface ChatLicenseStatus {
@@ -186,7 +195,7 @@ const MediaContent: React.FC<{ message: ChatMessage }> = ({ message }) => {
   }
 };
 
-const ChatManagement: React.FC<ChatManagementProps> = ({ authSeed }) => {
+const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ authSeed, onConversationChange, onConnectionStatusChange }, ref) => {
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [selectedConversation, setSelectedConversation] =
     useState<ChatConversation | null>(null);
@@ -202,7 +211,10 @@ const ChatManagement: React.FC<ChatManagementProps> = ({ authSeed }) => {
   useEffect(() => {
     console.log("🔔 selectedConversation changed:", selectedConversation?.id);
     selectedConversationRef.current = selectedConversation;
-  }, [selectedConversation]);
+    if (onConversationChange) {
+      onConversationChange(selectedConversation);
+    }
+  }, [selectedConversation, onConversationChange]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -227,7 +239,7 @@ const ChatManagement: React.FC<ChatManagementProps> = ({ authSeed }) => {
     useState<NotificationSettings>({
       desktopNotifications: true,
       soundEnabled: true,
-      soundVolume: 0.7,
+      soundVolume: 1.0,
       notificationTypes: {
         newMessage: true,
         conversationUpdate: true,
@@ -636,6 +648,21 @@ const ChatManagement: React.FC<ChatManagementProps> = ({ authSeed }) => {
     },
   });
 
+  // Expose selectedConversation and functions to parent (after connectionStatus is defined)
+  useImperativeHandle(ref, () => ({
+    selectedConversation,
+    resolveConversation,
+    showNotificationSettings: () => setShowNotificationSettings(true),
+    connectionStatus
+  }));
+
+  // Notify parent when connection status changes
+  useEffect(() => {
+    if (onConnectionStatusChange) {
+      onConnectionStatusChange(connectionStatus);
+    }
+  }, [connectionStatus, onConnectionStatusChange]);
+
   // Load chat license status from existing license status API
   const loadChatLicenseStatus = async () => {
     try {
@@ -726,16 +753,70 @@ const ChatManagement: React.FC<ChatManagementProps> = ({ authSeed }) => {
     const saved = localStorage.getItem("chatNotificationSettings");
     if (saved) {
       try {
-        setNotificationSettings(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        // Ensure max volume and all notifications are enabled
+        setNotificationSettings({
+          desktopNotifications: true,
+          soundEnabled: true,
+          soundVolume: 1.0,
+          notificationTypes: {
+            newMessage: true,
+            conversationUpdate: true,
+            assignment: true,
+          },
+          ...parsed,
+          soundVolume: 1.0, // Always use max volume
+          notificationTypes: {
+            newMessage: true,
+            conversationUpdate: true,
+            assignment: true,
+            ...parsed.notificationTypes,
+          },
+        });
       } catch (error) {
         console.error("Failed to load notification settings:", error);
+        // Use defaults with max volume
+        setNotificationSettings({
+          desktopNotifications: true,
+          soundEnabled: true,
+          soundVolume: 1.0,
+          notificationTypes: {
+            newMessage: true,
+            conversationUpdate: true,
+            assignment: true,
+          },
+        });
       }
+    } else {
+      // No saved settings, use defaults with max volume
+      setNotificationSettings({
+        desktopNotifications: true,
+        soundEnabled: true,
+        soundVolume: 1.0,
+        notificationTypes: {
+          newMessage: true,
+          conversationUpdate: true,
+          assignment: true,
+        },
+      });
     }
   };
 
   const saveNotificationSettings = (settings: NotificationSettings) => {
-    setNotificationSettings(settings);
-    localStorage.setItem("chatNotificationSettings", JSON.stringify(settings));
+    // Always enforce max volume and all notifications enabled
+    const enforcedSettings = {
+      ...settings,
+      desktopNotifications: true,
+      soundEnabled: true,
+      soundVolume: 1.0,
+      notificationTypes: {
+        newMessage: true,
+        conversationUpdate: true,
+        assignment: true,
+      },
+    };
+    setNotificationSettings(enforcedSettings);
+    localStorage.setItem("chatNotificationSettings", JSON.stringify(enforcedSettings));
   };
 
   const playNotificationSound = () => {
@@ -1756,7 +1837,7 @@ const ChatManagement: React.FC<ChatManagementProps> = ({ authSeed }) => {
   }
 
   return (
-    <div className="h-full flex bg-white">
+    <div className="h-full flex bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       {/* Mobile overlay */}
       {isMobile && showConversationList && (
         <div
@@ -1792,28 +1873,6 @@ const ChatManagement: React.FC<ChatManagementProps> = ({ authSeed }) => {
                   <MessageSquare className="h-5 w-5 mr-2" />
                   Customer Support Chat
                 </h2>
-                <div className="ml-3 flex items-center">
-                  <div
-                    className={`w-2 h-2 rounded-full mr-2 ${
-                      connectionStatus === "connected"
-                        ? "bg-green-500"
-                        : connectionStatus === "connecting"
-                          ? "bg-yellow-500"
-                          : connectionStatus === "error"
-                            ? "bg-red-500"
-                            : "bg-gray-400"
-                    }`}
-                  ></div>
-                  <span className="text-xs text-gray-500">
-                    {connectionStatus === "connected"
-                      ? "Connected"
-                      : connectionStatus === "connecting"
-                        ? "Connecting..."
-                        : connectionStatus === "error"
-                          ? "Error"
-                          : "Disconnected"}
-                  </span>
-                </div>
               </div>
             </div>
           </div>
@@ -1931,69 +1990,17 @@ const ChatManagement: React.FC<ChatManagementProps> = ({ authSeed }) => {
       <div className="flex-1 flex flex-col">
         {selectedConversation ? (
           <>
-            {/* Chat Header */}
-            <div className="p-4 border-b border-gray-200 bg-gray-50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  {isMobile && (
-                    <button
-                      onClick={() => setShowConversationList(true)}
-                      className="mr-3 p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                    >
-                      <ArrowLeft className="h-5 w-5" />
-                    </button>
-                  )}
-                  <div>
-                    <h3 className="text-lg font-medium text-gray-900">
-                      {selectedConversation.user_name}
-                    </h3>
-                    <p className="text-sm text-gray-500">
-                      User ID: {selectedConversation.user_id} • Status:{" "}
-                      {selectedConversation.status}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  {/* Resolve/Unresolve button */}
-                  {selectedConversation && (
-                    <button
-                      onClick={() => resolveConversation(selectedConversation.id, selectedConversation.resolved === 0)}
-                      className={`inline-flex items-center px-3 py-1.5 border text-xs font-medium rounded ${
-                        selectedConversation.resolved === 1
-                          ? "border-green-300 text-green-700 bg-green-50 hover:bg-green-100"
-                          : "border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100"
-                      }`}
-                      title={selectedConversation.resolved === 1 ? "Unresolve conversation" : "Resolve conversation"}
-                    >
-                      {selectedConversation.resolved === 1 ? (
-                        <>
-                          <XCircle className="h-3 w-3 mr-1" />
-                          Unresolve
-                        </>
-                      ) : (
-                        <>
-                          <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                          Resolve
-                        </>
-                      )}
-                    </button>
-                  )}
-
-                  {/* Advanced features buttons */}
-                  <button
-                    onClick={() => setShowNotificationSettings(true)}
-                    className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50"
-                    title="Notification Settings"
-                  >
-                    <Bell className="h-3 w-3 mr-1" />
-                    Notifications
-                  </button>
-
-                </div>
+            {/* Mobile back button */}
+            {isMobile && (
+              <div className="p-2 border-b border-gray-200 bg-gray-50">
+                <button
+                  onClick={() => setShowConversationList(true)}
+                  className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </button>
               </div>
-            </div>
+            )}
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -2535,14 +2542,14 @@ const ChatManagement: React.FC<ChatManagementProps> = ({ authSeed }) => {
       {conceptFeedback.show && (
         <div className="fixed top-4 right-4 z-50">
           <div
-            className={`max-w-sm w-full shadow-lg rounded-lg pointer-events-auto ring-1 ring-black ring-opacity-5 overflow-hidden transform transition-all duration-300 ease-in-out ${
+            className={`min-w-[200px] max-w-sm shadow-lg rounded-lg pointer-events-auto ring-1 ring-black ring-opacity-5 overflow-hidden transform transition-all duration-300 ease-in-out ${
               conceptFeedback.type === "success"
                 ? "bg-green-50 border border-green-200"
                 : "bg-red-50 border border-red-200"
             }`}
           >
             <div className="p-4">
-              <div className="flex items-start">
+              <div className="flex items-center gap-3">
                 <div className="flex-shrink-0">
                   {conceptFeedback.type === "success" ? (
                     <svg
@@ -2574,9 +2581,9 @@ const ChatManagement: React.FC<ChatManagementProps> = ({ authSeed }) => {
                     </svg>
                   )}
                 </div>
-                <div className="ml-3 w-0 flex-1">
+                <div className="flex-1 min-w-0">
                   <p
-                    className={`text-sm font-medium ${
+                    className={`text-sm font-medium break-words ${
                       conceptFeedback.type === "success"
                         ? "text-green-800"
                         : "text-red-800"
@@ -2592,6 +2599,8 @@ const ChatManagement: React.FC<ChatManagementProps> = ({ authSeed }) => {
       )}
     </div>
   );
-};
+});
+
+ChatManagement.displayName = 'ChatManagement';
 
 export default ChatManagement;

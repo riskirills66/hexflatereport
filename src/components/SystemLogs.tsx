@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { 
   RefreshCw, 
   Activity, 
@@ -20,6 +20,13 @@ import { getApiUrl, X_TOKEN_VALUE } from '../config/api';
 
 interface SystemLogsProps {
   authSeed: string;
+  onStatsChange?: (total: number) => void;
+}
+
+export interface SystemLogsRef {
+  refresh: () => void;
+  toggleFilter: () => void;
+  showFilters: boolean;
 }
 
 interface AdminActivityLog {
@@ -51,7 +58,7 @@ interface FilterState {
   showFilters: boolean;
 }
 
-const SystemLogs: React.FC<SystemLogsProps> = ({ authSeed }) => {
+const SystemLogs = forwardRef<SystemLogsRef, SystemLogsProps>(({ authSeed, onStatsChange }, ref) => {
   const [activities, setActivities] = useState<AdminActivityLog[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -112,6 +119,11 @@ const SystemLogs: React.FC<SystemLogsProps> = ({ authSeed }) => {
           console.log('Current browser time:', new Date().toISOString());
         }
         setActivities(data.activities);
+        
+        // Notify parent of stats change
+        if (onStatsChange) {
+          onStatsChange(data.activities.length);
+        }
       } else {
         setError(data.message || 'Gagal memuat aktivitas admin');
       }
@@ -123,9 +135,26 @@ const SystemLogs: React.FC<SystemLogsProps> = ({ authSeed }) => {
     }
   };
 
+  // Notify parent when activities change
+  useEffect(() => {
+    if (onStatsChange) {
+      onStatsChange(activities.length);
+    }
+  }, [activities.length, onStatsChange]);
+
   const refreshData = () => {
     setRefreshKey(prev => prev + 1);
   };
+
+  const toggleFilterHandler = () => {
+    setFilters(prev => ({ ...prev, showFilters: !prev.showFilters }));
+  };
+
+  useImperativeHandle(ref, () => ({
+    refresh: refreshData,
+    toggleFilter: toggleFilterHandler,
+    showFilters: filters.showFilters,
+  }));
 
   const applyFilters = () => {
     setRefreshKey(prev => prev + 1);
@@ -288,49 +317,6 @@ const SystemLogs: React.FC<SystemLogsProps> = ({ authSeed }) => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Log Sistem</h2>
-          <p className="text-gray-600">
-            {hasActiveFilters 
-              ? `Menampilkan ${filteredActivities.length} dari ${activities.length} aktivitas admin`
-              : `Aktivitas admin dan log sistem (${activities.length} total)`
-            }
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => updateFilter('showFilters', !filters.showFilters)}
-            className={`inline-flex items-center px-4 py-2 rounded-md transition-colors ${
-              filters.showFilters || hasActiveFilters
-                ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            <Filter className="h-4 w-4 mr-2" />
-            Filter
-            {hasActiveFilters && (
-              <span className="ml-2 bg-white text-indigo-600 text-xs px-2 py-0.5 rounded-full">
-                {[filters.searchTerm, filters.actionType, filters.adminUser, filters.dateFrom, filters.dateTo].filter(Boolean).length}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={refreshData}
-            disabled={isLoading}
-            className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-          >
-            {isLoading ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-            ) : (
-              <RefreshCw className="h-4 w-4 mr-2" />
-            )}
-            Refresh
-          </button>
-        </div>
-      </div>
-
       {/* Filter Panel */}
       {filters.showFilters && (
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
@@ -652,6 +638,8 @@ const SystemLogs: React.FC<SystemLogsProps> = ({ authSeed }) => {
       </div>
     </div>
   );
-};
+});
+
+SystemLogs.displayName = 'SystemLogs';
 
 export default SystemLogs;

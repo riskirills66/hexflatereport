@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { 
   MessageSquare, 
   Search, 
@@ -40,10 +40,16 @@ interface DeleteFeedbackResponse {
 interface FeedbackViewerProps {
   authSeed: string;
   onNavigate: (section: string) => void;
+  onStatsChange?: (total: number) => void;
 }
 
+export interface FeedbackViewerRef {
+  refresh: () => void;
+  toggleTechnicalDetails: () => void;
+  showTechnicalDetails: boolean;
+}
 
-const FeedbackViewer: React.FC<FeedbackViewerProps> = ({ authSeed, onNavigate }) => {
+const FeedbackViewer = forwardRef<FeedbackViewerRef, FeedbackViewerProps>(({ authSeed, onNavigate, onStatsChange }, ref) => {
   const [feedback, setFeedback] = useState<FeedbackItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<number | null>(null);
@@ -89,6 +95,11 @@ const FeedbackViewer: React.FC<FeedbackViewerProps> = ({ authSeed, onNavigate })
           setFeedback(data.feedback);
           setTotalCount(data.total);
           setCurrentPage(page);
+          
+          // Notify parent of stats change
+          if (onStatsChange) {
+            onStatsChange(data.total);
+          }
         } else {
           setMessage({ type: 'error', text: data.message || 'Failed to load feedback' });
         }
@@ -102,6 +113,27 @@ const FeedbackViewer: React.FC<FeedbackViewerProps> = ({ authSeed, onNavigate })
       setLoading(false);
     }
   };
+
+  // Notify parent when totalCount changes
+  useEffect(() => {
+    if (onStatsChange) {
+      onStatsChange(totalCount);
+    }
+  }, [totalCount, onStatsChange]);
+
+  const refreshData = () => {
+    loadFeedback(currentPage, searchTerm);
+  };
+
+  const toggleTechnicalDetailsHandler = () => {
+    setShowTechnicalDetails(!showTechnicalDetails);
+  };
+
+  useImperativeHandle(ref, () => ({
+    refresh: refreshData,
+    toggleTechnicalDetails: toggleTechnicalDetailsHandler,
+    showTechnicalDetails,
+  }));
 
   const deleteFeedback = async (id: number) => {
     try {
@@ -197,46 +229,6 @@ const FeedbackViewer: React.FC<FeedbackViewerProps> = ({ authSeed, onNavigate })
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={() => onNavigate('dashboard')}
-              className="p-2 hover:bg-gray-100 rounded-md transition-colors"
-            >
-              <ChevronLeft className="h-5 w-5 text-gray-600" />
-            </button>
-            <MessageSquare className="h-6 w-6 text-indigo-600" />
-            <div>
-              <h1 className="text-xl font-semibold text-gray-900">Feedback</h1>
-              <p className="text-sm text-gray-600">Kelola feedback dari pengguna aplikasi</p>
-            </div>
-          </div>
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={() => setShowTechnicalDetails(!showTechnicalDetails)}
-              className={`px-3 py-2 text-sm rounded-md flex items-center space-x-2 ${
-                showTechnicalDetails 
-                  ? 'bg-indigo-100 text-indigo-700' 
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {showTechnicalDetails ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              <span>{showTechnicalDetails ? 'Sembunyikan' : 'Tampilkan'} Detail Teknis</span>
-            </button>
-            <button
-              onClick={() => loadFeedback(currentPage, searchTerm)}
-              disabled={loading}
-              className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center space-x-2"
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              <span>Refresh</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* Search and Stats */}
       <div className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
         <div className="flex items-center justify-between">
@@ -425,6 +417,8 @@ const FeedbackViewer: React.FC<FeedbackViewerProps> = ({ authSeed, onNavigate })
       </div>
     </div>
   );
-};
+});
+
+FeedbackViewer.displayName = 'FeedbackViewer';
 
 export default FeedbackViewer;

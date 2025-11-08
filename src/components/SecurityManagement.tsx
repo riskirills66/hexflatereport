@@ -1,5 +1,5 @@
 import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { Shield, Database, Globe, AlertTriangle, CheckCircle, Eye, EyeOff, Settings, ToggleLeft, ToggleRight, Clock, Info } from 'lucide-react';
+import { Shield, AlertTriangle, CheckCircle, Settings, ToggleLeft, ToggleRight, Clock, Info } from 'lucide-react';
 import { getApiUrl, X_TOKEN_VALUE } from '../config/api';
 
 interface SecurityManagementProps {
@@ -88,11 +88,11 @@ interface CutoffConfig {
   cutoff_end: string;
 }
 
-const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementProps>(({ authSeed, onNavigate }, ref) => {
+const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementProps>(
+  ({ authSeed, onNavigate }, ref) => {
   const [config, setConfig] = useState<SecurityConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [showConnectionString, setShowConnectionString] = useState(false);
   const [currentAdminInfo, setCurrentAdminInfo] = useState<CurrentAdminInfo | null>(null);
   const [dynamicPatternOrder, setDynamicPatternOrder] = useState<string[]>([]);
   const [demoNumber, setDemoNumber] = useState<string | null>(null);
@@ -106,6 +106,9 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
   // Cutoff configuration state
   const [cutoffConfig, setCutoffConfig] = useState<CutoffConfig | null>(null);
   const [loadingCutoff, setLoadingCutoff] = useState(false);
+  
+  // Tab state
+  const [activeTab, setActiveTab] = useState<string>('priority_settings');
 
   useEffect(() => {
     fetchCurrentAdminInfo();
@@ -130,6 +133,30 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
       setDynamicPatternOrder(Object.keys(config.outbox_patterns.dynamic_patterns));
     }
   }, [config?.outbox_patterns?.dynamic_patterns, dynamicPatternOrder.length]);
+
+  // Set initial active tab to first available config when loading completes
+  useEffect(() => {
+    if (!loading && config) {
+      // Only set if current tab's config doesn't exist
+      const currentTabHasConfig = 
+        (activeTab === 'priority_settings' && appRules) ||
+        (activeTab === 'transfer_transaksi' && (config.balance_transfer || config.combotrx || config.commission_exchange)) ||
+        (activeTab === 'produk_poin' && (config.history || config.poin)) ||
+        (activeTab === 'outbox_patterns' && config.outbox_patterns) ||
+        (activeTab === 'cutoff' && cutoffConfig) ||
+        (activeTab === 'demo_number' && demoNumber !== null);
+
+      if (!currentTabHasConfig) {
+        // Set to first available tab
+        if (appRules) setActiveTab('priority_settings');
+        else if (config.balance_transfer || config.combotrx || config.commission_exchange) setActiveTab('transfer_transaksi');
+        else if (config.history || config.poin) setActiveTab('produk_poin');
+        else if (config.outbox_patterns) setActiveTab('outbox_patterns');
+        else if (cutoffConfig) setActiveTab('cutoff');
+        else if (demoNumber !== null) setActiveTab('demo_number');
+      }
+    }
+  }, [loading, config, appRules, cutoffConfig, demoNumber, activeTab]);
 
 
   const fetchCurrentAdminInfo = async () => {
@@ -273,40 +300,6 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
       
       return newConfig;
     });
-  };
-
-  const initializeCorsConfig = () => {
-    if (!config) return;
-    
-    setConfig(prev => {
-      if (!prev) return null;
-      
-      return {
-        ...prev,
-        cors_config: {
-          allowed_origins: ['*'],
-          allowed_methods: ['GET', 'POST', 'PUT', 'DELETE'],
-          allowed_headers: ['*'],
-          allow_credentials: false
-        }
-      };
-    });
-  };
-
-  const addCorsItem = (field: 'allowed_origins' | 'allowed_methods' | 'allowed_headers') => {
-    if (!config?.cors_config) return;
-
-    const newItem = prompt(`Enter new ${field.replace('_', ' ')} item:`);
-    if (newItem && newItem.trim()) {
-      updateConfig('cors_config', field, [...config.cors_config[field], newItem.trim()]);
-    }
-  };
-
-  const removeCorsItem = (field: 'allowed_origins' | 'allowed_methods' | 'allowed_headers', index: number) => {
-    if (!config?.cors_config) return;
-
-    const newItems = config.cors_config[field].filter((_, i) => i !== index);
-    updateConfig('cors_config', field, newItems);
   };
 
   const initializeOutboxPatterns = () => {
@@ -1088,1019 +1081,916 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <div className="flex items-center space-x-3">
-          <Shield className="h-8 w-8 text-blue-600" />
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">Konfigurasi Server</h2>
-            <p className="text-gray-600">Kelola pengaturan server, database, CORS, dan konfigurasi sistem</p>
-          </div>
-        </div>
-      </div>
-
+    <div className="space-y-4">
       {/* Message */}
       {message && (
-        <div className={`p-4 rounded-md ${
-          message.type === 'success' 
-            ? 'bg-green-50 border border-green-200 text-green-800' 
-            : 'bg-red-50 border border-red-200 text-red-800'
+        <div className={`p-3 rounded-md flex items-center space-x-2 ${
+          message.type === 'success'
+            ? 'bg-green-50 text-green-800 border border-green-200'
+            : 'bg-red-50 text-red-800 border border-red-200'
         }`}>
-          <div className="flex items-center">
-            {message.type === 'success' ? (
-              <CheckCircle className="h-5 w-5 mr-2" />
-            ) : (
-              <AlertTriangle className="h-5 w-5 mr-2" />
-            )}
-            {message.text}
-          </div>
+          {message.type === 'success' ? (
+            <CheckCircle className="h-4 w-4" />
+          ) : (
+            <AlertTriangle className="h-4 w-4" />
+          )}
+          <span className="text-sm">{message.text}</span>
         </div>
       )}
 
-      
-      {/* Priority Settings Section */}
-      {appRules && (
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center space-x-3 mb-6">
-            <Settings className="h-6 w-6 text-indigo-600" />
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Pengaturan Prioritas</h3>
-              <p className="text-sm text-gray-600">Konfigurasi pengaturan aplikasi yang paling penting</p>
-            </div>
-          </div>
+      {/* Tab Navigation */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="border-b border-gray-200 overflow-hidden">
+          <nav 
+            className="flex overflow-x-auto" 
+            style={{ 
+              WebkitOverflowScrolling: 'touch',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none'
+            }}
+            aria-label="Tabs"
+          >
+            {appRules && (
+              <button
+                onClick={() => setActiveTab('priority_settings')}
+                className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                  activeTab === 'priority_settings'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Pengaturan Prioritas
+              </button>
+            )}
+            <button
+              onClick={() => setActiveTab('transfer_transaksi')}
+              className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                activeTab === 'transfer_transaksi'
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Transfer & Transaksi
+            </button>
+            <button
+              onClick={() => setActiveTab('produk_poin')}
+              className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                activeTab === 'produk_poin'
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Produk & Poin
+            </button>
+            <button
+              onClick={() => setActiveTab('outbox_patterns')}
+              className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                activeTab === 'outbox_patterns'
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Outbox Patterns
+            </button>
+            <button
+              onClick={() => setActiveTab('cutoff')}
+              className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                activeTab === 'cutoff'
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Cutoff
+            </button>
+            <button
+              onClick={() => setActiveTab('demo_number')}
+              className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                activeTab === 'demo_number'
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Demo Number
+            </button>
+          </nav>
+        </div>
 
-          {loadingAppRules ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
-              <span className="ml-3 text-gray-600">Memuat pengaturan prioritas...</span>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {prioritySettings.map(key => {
-                const value = appRules[key];
-                if (value !== undefined) {
-                  return renderField(key, value);
-                }
-                return null;
-              })}
+        {/* Tab Content */}
+        <div className="p-4">
+          {/* Priority Settings Tab */}
+          {appRules && activeTab === 'priority_settings' && (
+            <div className="space-y-6">
+              <div>
+                <div className="flex items-center space-x-3 mb-4">
+                  <Settings className="h-6 w-6 text-indigo-600" />
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Pengaturan Prioritas</h3>
+                    <p className="text-sm text-gray-600">Konfigurasi pengaturan aplikasi yang paling penting</p>
+                  </div>
+                </div>
+
+                {loadingAppRules ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
+                    <span className="ml-3 text-gray-600">Memuat pengaturan prioritas...</span>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {prioritySettings.map(key => {
+                      const value = appRules[key];
+                      if (value !== undefined) {
+                        return renderField(key, value);
+                      }
+                      return null;
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Dynamic Rules Section */}
+              {dynamicRules && Object.keys(dynamicRules).length > 0 && (
+                <div>
+                  <div className="flex items-center space-x-3 mb-4">
+                    <Settings className="h-6 w-6 text-purple-600" />
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">Pengaturan Member Baru</h3>
+                      <p className="text-sm text-gray-600">Konfigurasi pengaturan dinamis berdasarkan aplikasi</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {Object.entries(dynamicRules).map(([key, value]) => {
+                      if (value !== undefined) {
+                        return renderDynamicField(key, value);
+                      }
+                      return null;
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-        </div>
-      )}
-
-      {/* Dynamic Rules Section */}
-      {dynamicRules && Object.keys(dynamicRules).length > 0 && (
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center space-x-3 mb-6">
-            <Settings className="h-6 w-6 text-purple-600" />
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Pengaturan Member Baru</h3>
-              <p className="text-sm text-gray-600">Konfigurasi pengaturan dinamis berdasarkan aplikasi</p>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {Object.entries(dynamicRules).map(([key, value]) => {
-              if (value !== undefined) {
-                return renderDynamicField(key, value);
-              }
-              return null;
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Balance Transfer Configuration */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <div className="flex items-center space-x-3 mb-6">
-          <div className="h-6 w-6 bg-orange-100 rounded-full flex items-center justify-center">
-            <span className="text-orange-600 font-bold text-sm">BT</span>
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Transfer Saldo</h3>
-        </div>
-
-        {!config.balance_transfer && (
-          <div className="mb-4">
-            <button
-              onClick={() => {
-                setConfig(prev => ({
-                  ...prev!,
-                  balance_transfer: {
-                    add_format: "ADD.{destination}.{val}.{pin}",
-                    trans_format: "TRANS.{destination}.{val}.{pin}"
-                  }
-                }));
-              }}
-              className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
-            >
-              Aktifkan Konfigurasi Transfer Saldo
-            </button>
-          </div>
-        )}
-
-        {config.balance_transfer && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Format Tambah
-              </label>
-              <input
-                type="text"
-                value={config.balance_transfer.add_format}
-                onChange={(e) => updateConfig('balance_transfer', 'add_format', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="ADD.{destination}.{val}.{pin}"
-              />
-              <p className="text-sm text-gray-500 mt-1">
-                Format untuk menambah saldo. Gunakan {`{destination}`}, {`{val}`}, {`{pin}`} sebagai placeholder.
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Format Transfer
-              </label>
-              <input
-                type="text"
-                value={config.balance_transfer.trans_format}
-                onChange={(e) => updateConfig('balance_transfer', 'trans_format', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="TRANS.{destination}.{val}.{pin}"
-              />
-              <p className="text-sm text-gray-500 mt-1">
-                Format untuk mentransfer saldo. Gunakan {`{destination}`}, {`{val}`}, {`{pin}`} sebagai placeholder.
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Combotrx Configuration */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <div className="flex items-center space-x-3 mb-6">
-          <div className="h-6 w-6 bg-blue-100 rounded-full flex items-center justify-center">
-            <span className="text-blue-600 font-bold text-sm">CT</span>
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Combotrx</h3>
-        </div>
-
-        {!config.combotrx && (
-          <div className="mb-4">
-            <button
-              onClick={() => {
-                setConfig(prev => ({
-                  ...prev!,
-                  combotrx: {
-                    outbox_like_pattern: "%{product}.{destination}%Sukses%",
-                    pesan_format_no_val: "{trxid}.{product}.{destination}.{pin}",
-                    pesan_format_with_val: "{trxid}.{product}.{destination}.{val}.{pin}",
-                    sdh_pernah_filter: "%sdh pernah%"
-                  }
-                }));
-              }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-            >
-              Aktifkan Konfigurasi Combotrx
-            </button>
-          </div>
-        )}
-
-        {config.combotrx && (
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Pola Outbox Like
-              </label>
-              <input
-                type="text"
-                value={config.combotrx.outbox_like_pattern}
-                onChange={(e) => updateConfig('combotrx', 'outbox_like_pattern', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="%{product}.{destination}%Sukses%"
-              />
-              <p className="text-sm text-gray-500 mt-1">
-                Pola untuk mencocokkan pesan outbox. Gunakan {`{product}`}, {`{destination}`} sebagai placeholder.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Transfer & Transaksi Tab */}
+          {activeTab === 'transfer_transaksi' && (
+            <div className="space-y-6">
+              {/* Balance Transfer Configuration */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Format Pesan (Tanpa Nilai)
-                </label>
-                <input
-                  type="text"
-                  value={config.combotrx.pesan_format_no_val}
-                  onChange={(e) => updateConfig('combotrx', 'pesan_format_no_val', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="{trxid}.{product}.{destination}.{pin}"
-                />
-                <p className="text-sm text-gray-500 mt-1">
-                  Format untuk pesan tanpa nilai. Gunakan {`{trxid}`}, {`{product}`}, {`{destination}`}, {`{pin}`} sebagai placeholder.
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Format Pesan (Dengan Nilai)
-                </label>
-                <input
-                  type="text"
-                  value={config.combotrx.pesan_format_with_val}
-                  onChange={(e) => updateConfig('combotrx', 'pesan_format_with_val', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="{trxid}.{product}.{destination}.{val}.{pin}"
-                />
-                <p className="text-sm text-gray-500 mt-1">
-                  Format untuk pesan dengan nilai. Gunakan {`{trxid}`}, {`{product}`}, {`{destination}`}, {`{val}`}, {`{pin}`} sebagai placeholder.
-                </p>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Filter Sudah Diproses
-              </label>
-              <input
-                type="text"
-                value={config.combotrx.sdh_pernah_filter}
-                onChange={(e) => updateConfig('combotrx', 'sdh_pernah_filter', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="%sdh pernah%"
-              />
-              <p className="text-sm text-gray-500 mt-1">
-                Pola untuk memfilter pesan yang sudah diproses.
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Commission Exchange Configuration */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <div className="flex items-center space-x-3 mb-6">
-          <div className="h-6 w-6 bg-green-100 rounded-full flex items-center justify-center">
-            <span className="text-green-600 font-bold text-sm">CE</span>
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Tukar Komisi</h3>
-        </div>
-
-        {!config.commission_exchange && (
-          <div className="mb-4">
-            <button
-              onClick={() => {
-                setConfig(prev => ({
-                  ...prev!,
-                  commission_exchange: {
-                    tukar_format: "TUKAR.{val}.{pin}"
-                  }
-                }));
-              }}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-            >
-              Aktifkan Konfigurasi Tukar Komisi
-            </button>
-          </div>
-        )}
-
-        {config.commission_exchange && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Format Tukar
-            </label>
-            <input
-              type="text"
-              value={config.commission_exchange.tukar_format}
-              onChange={(e) => updateConfig('commission_exchange', 'tukar_format', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="TUKAR.{val}.{pin}"
-            />
-            <p className="text-sm text-gray-500 mt-1">
-              Format untuk tukar komisi. Gunakan {`{val}`}, {`{pin}`} sebagai placeholder.
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* History Configuration */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <div className="flex items-center space-x-3 mb-6">
-          <div className="h-6 w-6 bg-purple-100 rounded-full flex items-center justify-center">
-            <span className="text-purple-600 font-bold text-sm">H</span>
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Riwayat</h3>
-        </div>
-
-        {!config.history && (
-          <div className="mb-4">
-            <button
-              onClick={() => {
-                setConfig(prev => ({
-                  ...prev!,
-                  history: {
-                    minimum_harga_to_display_in_history: 1
-                  }
-                }));
-              }}
-              className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
-            >
-              Aktifkan Konfigurasi Riwayat
-            </button>
-          </div>
-        )}
-
-        {config.history && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Harga Minimum untuk Ditampilkan di Riwayat
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={config.history.minimum_harga_to_display_in_history}
-              onChange={(e) => updateConfig('history', 'minimum_harga_to_display_in_history', parseFloat(e.target.value) || 0)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="1"
-            />
-            <p className="text-sm text-gray-500 mt-1">
-              Ambang batas harga minimum untuk menampilkan transaksi di riwayat. Hanya transaksi di atas jumlah ini yang akan ditampilkan.
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Poin Configuration */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <div className="flex items-center space-x-3 mb-6">
-          <div className="h-6 w-6 bg-yellow-100 rounded-full flex items-center justify-center">
-            <span className="text-yellow-600 font-bold text-sm">P</span>
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Poin</h3>
-        </div>
-
-        {!config.poin && (
-          <div className="mb-4">
-            <button
-              onClick={() => {
-                setConfig(prev => ({
-                  ...prev!,
-                  poin: {
-                    exchange_rate: 4.0,
-                    minimum_exchange: 500.0
-                  }
-                }));
-              }}
-              className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition-colors"
-            >
-              Aktifkan Konfigurasi Poin
-            </button>
-          </div>
-        )}
-
-        {config.poin && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Kurs Tukar
-              </label>
-              <input
-                type="number"
-                step="0.1"
-                min="0"
-                value={config.poin.exchange_rate}
-                onChange={(e) => updateConfig('poin', 'exchange_rate', parseFloat(e.target.value) || 0)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="4.0"
-              />
-              <p className="text-sm text-gray-500 mt-1">
-                Kurs tukar untuk mengkonversi poin ke mata uang.
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Jumlah Tukar Minimum
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={config.poin.minimum_exchange || ''}
-                onChange={(e) => updateConfig('poin', 'minimum_exchange', e.target.value ? parseFloat(e.target.value) : undefined)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="500.0"
-              />
-              <p className="text-sm text-gray-500 mt-1">
-                Jumlah minimum yang diperlukan untuk tukar poin. Kosongkan untuk menonaktifkan minimum.
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Outbox Patterns Configuration */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <div className="flex items-center space-x-3 mb-6">
-          <div className="h-6 w-6 bg-indigo-100 rounded-full flex items-center justify-center">
-            <span className="text-indigo-600 font-bold text-sm">OP</span>
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Outbox Patterns</h3>
-        </div>
-
-        {!config.outbox_patterns && (
-          <div className="mb-4">
-            <button
-              onClick={initializeOutboxPatterns}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
-            >
-              Aktifkan Konfigurasi Outbox Patterns
-            </button>
-          </div>
-        )}
-
-        {config.outbox_patterns && (
-          <div className="space-y-8">
-            {/* Static Patterns */}
-            <div>
-              <h4 className="text-md font-semibold text-gray-800 mb-4">Pattern Statis (Tidak Dapat Dihapus)</h4>
-              <div className="space-y-4">
-                {/* Transaksi Sukses */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Judul Transaksi Sukses
-                    </label>
-                    <input
-                      type="text"
-                      value={config.outbox_patterns.static_patterns.transaksi_sukses.title}
-                      onChange={(e) => updateConfig('outbox_patterns', 'static_transaksi_sukses', {
-                        ...config.outbox_patterns!.static_patterns.transaksi_sukses,
-                        title: e.target.value
-                      })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="h-6 w-6 bg-orange-100 rounded-full flex items-center justify-center">
+                    <span className="text-orange-600 font-bold text-sm">BT</span>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Pattern Transaksi Sukses
-                    </label>
-                    <input
-                      type="text"
-                      value={config.outbox_patterns.static_patterns.transaksi_sukses.pattern}
-                      onChange={(e) => updateConfig('outbox_patterns', 'static_transaksi_sukses', {
-                        ...config.outbox_patterns!.static_patterns.transaksi_sukses,
-                        pattern: e.target.value
-                      })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="(?i)sukses"
-                    />
-                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Transfer Saldo</h3>
                 </div>
 
-                {/* Transaksi Proses */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Judul Transaksi Proses
-                    </label>
-                    <input
-                      type="text"
-                      value={config.outbox_patterns.static_patterns.transaksi_proses.title}
-                      onChange={(e) => updateConfig('outbox_patterns', 'static_transaksi_proses', {
-                        ...config.outbox_patterns!.static_patterns.transaksi_proses,
-                        title: e.target.value
-                      })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                {!config.balance_transfer && (
+                  <div className="mb-4">
+                    <button
+                      onClick={() => {
+                        setConfig(prev => ({
+                          ...prev!,
+                          balance_transfer: {
+                            add_format: "ADD.{destination}.{val}.{pin}",
+                            trans_format: "TRANS.{destination}.{val}.{pin}"
+                          }
+                        }));
+                      }}
+                      className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
+                    >
+                      Aktifkan Konfigurasi Transfer Saldo
+                    </button>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Pattern Transaksi Proses
-                    </label>
-                    <input
-                      type="text"
-                      value={config.outbox_patterns.static_patterns.transaksi_proses.pattern}
-                      onChange={(e) => updateConfig('outbox_patterns', 'static_transaksi_proses', {
-                        ...config.outbox_patterns!.static_patterns.transaksi_proses,
-                        pattern: e.target.value
-                      })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="(?i)proses"
-                    />
-                  </div>
-                </div>
+                )}
 
-                {/* Transaksi Gagal */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Judul Transaksi Gagal
-                    </label>
-                    <input
-                      type="text"
-                      value={config.outbox_patterns.static_patterns.transaksi_gagal.title}
-                      onChange={(e) => updateConfig('outbox_patterns', 'static_transaksi_gagal', {
-                        ...config.outbox_patterns!.static_patterns.transaksi_gagal,
-                        title: e.target.value
-                      })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Pattern Transaksi Gagal
-                    </label>
-                    <input
-                      type="text"
-                      value={config.outbox_patterns.static_patterns.transaksi_gagal.pattern}
-                      onChange={(e) => updateConfig('outbox_patterns', 'static_transaksi_gagal', {
-                        ...config.outbox_patterns!.static_patterns.transaksi_gagal,
-                        pattern: e.target.value
-                      })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="(?i)Gagal"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Dynamic Patterns */}
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="text-md font-semibold text-gray-800">Pattern Dinamis (Dapat Ditambah/Dihapus)</h4>
-                <button
-                  onClick={addDynamicPattern}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors text-sm"
-                >
-                  + Tambah Pattern
-                </button>
-              </div>
-              
-              <div className="space-y-4">
-                {dynamicPatternOrder.map((key, index) => {
-                  const pattern = config.outbox_patterns?.dynamic_patterns[key];
-                  if (!pattern) return null;
-                  return (
-                  <div key={`pattern-${index}`} className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border border-gray-200 rounded-md">
+                {config.balance_transfer && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Key Pattern
+                        Format Tambah
                       </label>
                       <input
                         type="text"
-                        value={key}
-                        onChange={(e) => {
-                          const newKey = e.target.value.replace(/\s+/g, ''); // Remove all spaces
-                          if (newKey !== key) {
-                            // Update the key in the dynamic patterns
-                            setConfig(prev => {
-                              if (!prev?.outbox_patterns) return null;
-                              const newDynamicPatterns = { ...prev.outbox_patterns.dynamic_patterns };
-                              const patternData = newDynamicPatterns[key];
-                              delete newDynamicPatterns[key];
-                              newDynamicPatterns[newKey] = patternData;
-                              
-                              return {
-                                ...prev,
-                                outbox_patterns: {
-                                  ...prev.outbox_patterns,
-                                  dynamic_patterns: newDynamicPatterns
-                                }
-                              };
-                            });
-                            
-                            // Update the order array
-                            setDynamicPatternOrder(prev => prev.map(k => k === key ? newKey : k));
-                          }
-                        }}
-                        onBlur={(e) => {
-                          // Ensure no spaces on blur (when user finishes editing)
-                          const trimmedKey = e.target.value.replace(/\s+/g, '');
-                          if (trimmedKey !== e.target.value) {
-                            e.target.value = trimmedKey;
-                            if (trimmedKey !== key) {
-                              setConfig(prev => {
-                                if (!prev?.outbox_patterns) return null;
-                                const newDynamicPatterns = { ...prev.outbox_patterns.dynamic_patterns };
-                                const patternData = newDynamicPatterns[key];
-                                delete newDynamicPatterns[key];
-                                newDynamicPatterns[trimmedKey] = patternData;
-                                
-                                return {
-                                  ...prev,
-                                  outbox_patterns: {
-                                    ...prev.outbox_patterns,
-                                    dynamic_patterns: newDynamicPatterns
-                                  }
-                                };
-                              });
-                              
-                              // Update the order array
-                              setDynamicPatternOrder(prev => prev.map(k => k === key ? trimmedKey : k));
-                            }
-                          }
-                        }}
+                        value={config.balance_transfer.add_format}
+                        onChange={(e) => updateConfig('balance_transfer', 'add_format', e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="ADD.{destination}.{val}.{pin}"
                       />
+                      <p className="text-sm text-gray-500 mt-1">
+                        Format untuk menambah saldo. Gunakan {`{destination}`}, {`{val}`}, {`{pin}`} sebagai placeholder.
+                      </p>
                     </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Judul
+                        Format Transfer
                       </label>
                       <input
                         type="text"
-                        value={pattern.title}
-                        onChange={(e) => updateConfig('outbox_patterns', `dynamic_${key}`, {
-                          ...pattern,
-                          title: e.target.value
-                        })}
+                        value={config.balance_transfer.trans_format}
+                        onChange={(e) => updateConfig('balance_transfer', 'trans_format', e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="TRANS.{destination}.{val}.{pin}"
                       />
+                      <p className="text-sm text-gray-500 mt-1">
+                        Format untuk mentransfer saldo. Gunakan {`{destination}`}, {`{val}`}, {`{pin}`} sebagai placeholder.
+                      </p>
                     </div>
-                    <div className="flex items-end space-x-2">
-                      <div className="flex-1">
+                  </div>
+                )}
+              </div>
+
+              {/* Combotrx Configuration */}
+              <div>
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="h-6 w-6 bg-blue-100 rounded-full flex items-center justify-center">
+                    <span className="text-blue-600 font-bold text-sm">CT</span>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Combotrx</h3>
+                </div>
+
+                {!config.combotrx && (
+                  <div className="mb-4">
+                    <button
+                      onClick={() => {
+                        setConfig(prev => ({
+                          ...prev!,
+                          combotrx: {
+                            outbox_like_pattern: "%{product}.{destination}%Sukses%",
+                            pesan_format_no_val: "{trxid}.{product}.{destination}.{pin}",
+                            pesan_format_with_val: "{trxid}.{product}.{destination}.{val}.{pin}",
+                            sdh_pernah_filter: "%sdh pernah%"
+                          }
+                        }));
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                    >
+                      Aktifkan Konfigurasi Combotrx
+                    </button>
+                  </div>
+                )}
+
+                {config.combotrx && (
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Pola Outbox Like
+                      </label>
+                      <input
+                        type="text"
+                        value={config.combotrx.outbox_like_pattern}
+                        onChange={(e) => updateConfig('combotrx', 'outbox_like_pattern', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="%{product}.{destination}%Sukses%"
+                      />
+                      <p className="text-sm text-gray-500 mt-1">
+                        Pola untuk mencocokkan pesan outbox. Gunakan {`{product}`}, {`{destination}`} sebagai placeholder.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Pattern Regex
+                          Format Pesan (Tanpa Nilai)
                         </label>
                         <input
                           type="text"
-                          value={pattern.pattern}
-                          onChange={(e) => updateConfig('outbox_patterns', `dynamic_${key}`, {
-                            ...pattern,
-                            pattern: e.target.value
-                          })}
+                          value={config.combotrx.pesan_format_no_val}
+                          onChange={(e) => updateConfig('combotrx', 'pesan_format_no_val', e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="{trxid}.{product}.{destination}.{pin}"
                         />
+                        <p className="text-sm text-gray-500 mt-1">
+                          Format untuk pesan tanpa nilai. Gunakan {`{trxid}`}, {`{product}`}, {`{destination}`}, {`{pin}`} sebagai placeholder.
+                        </p>
                       </div>
-                      <button
-                        onClick={() => removeDynamicPattern(key)}
-                        className="px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-sm"
-                      >
-                        Hapus
-                      </button>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Format Pesan (Dengan Nilai)
+                        </label>
+                        <input
+                          type="text"
+                          value={config.combotrx.pesan_format_with_val}
+                          onChange={(e) => updateConfig('combotrx', 'pesan_format_with_val', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="{trxid}.{product}.{destination}.{val}.{pin}"
+                        />
+                        <p className="text-sm text-gray-500 mt-1">
+                          Format untuk pesan dengan nilai. Gunakan {`{trxid}`}, {`{product}`}, {`{destination}`}, {`{val}`}, {`{pin}`} sebagai placeholder.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Filter Sudah Diproses
+                      </label>
+                      <input
+                        type="text"
+                        value={config.combotrx.sdh_pernah_filter}
+                        onChange={(e) => updateConfig('combotrx', 'sdh_pernah_filter', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="%sdh pernah%"
+                      />
+                      <p className="text-sm text-gray-500 mt-1">
+                        Pola untuk memfilter pesan yang sudah diproses.
+                      </p>
                     </div>
                   </div>
-                  );
-                })}
-                
-                {dynamicPatternOrder.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <p>Belum ada pattern dinamis. Klik "Tambah Pattern" untuk menambahkan.</p>
+                )}
+              </div>
+
+              {/* Commission Exchange Configuration */}
+              <div>
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="h-6 w-6 bg-green-100 rounded-full flex items-center justify-center">
+                    <span className="text-green-600 font-bold text-sm">CE</span>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Tukar Komisi</h3>
+                </div>
+
+                {!config.commission_exchange && (
+                  <div className="mb-4">
+                    <button
+                      onClick={() => {
+                        setConfig(prev => ({
+                          ...prev!,
+                          commission_exchange: {
+                            tukar_format: "TUKAR.{val}.{pin}"
+                          }
+                        }));
+                      }}
+                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                    >
+                      Aktifkan Konfigurasi Tukar Komisi
+                    </button>
+                  </div>
+                )}
+
+                {config.commission_exchange && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Format Tukar
+                    </label>
+                    <input
+                      type="text"
+                      value={config.commission_exchange.tukar_format}
+                      onChange={(e) => updateConfig('commission_exchange', 'tukar_format', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="TUKAR.{val}.{pin}"
+                    />
+                    <p className="text-sm text-gray-500 mt-1">
+                      Format untuk tukar komisi. Gunakan {`{val}`}, {`{pin}`} sebagai placeholder.
+                    </p>
                   </div>
                 )}
               </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
 
-      {/* Cutoff Configuration */}
-      {cutoffConfig && (
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center space-x-3 mb-6">
-            <Clock className="h-6 w-6 text-orange-600" />
+          {/* Produk & Poin Tab */}
+          {activeTab === 'produk_poin' && (
+            <div className="space-y-6">
+              {/* History Configuration */}
+              <div>
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="h-6 w-6 bg-purple-100 rounded-full flex items-center justify-center">
+                    <span className="text-purple-600 font-bold text-sm">H</span>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Riwayat</h3>
+                </div>
+
+                {!config.history && (
+                  <div className="mb-4">
+                    <button
+                      onClick={() => {
+                        setConfig(prev => ({
+                          ...prev!,
+                          history: {
+                            minimum_harga_to_display_in_history: 1
+                          }
+                        }));
+                      }}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
+                    >
+                      Aktifkan Konfigurasi Riwayat
+                    </button>
+                  </div>
+                )}
+
+                {config.history && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Harga Minimum untuk Ditampilkan di Riwayat
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={config.history.minimum_harga_to_display_in_history}
+                      onChange={(e) => updateConfig('history', 'minimum_harga_to_display_in_history', parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="1"
+                    />
+                    <p className="text-sm text-gray-500 mt-1">
+                      Ambang batas harga minimum untuk menampilkan transaksi di riwayat. Hanya transaksi di atas jumlah ini yang akan ditampilkan.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Poin Configuration */}
+              <div>
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="h-6 w-6 bg-yellow-100 rounded-full flex items-center justify-center">
+                    <span className="text-yellow-600 font-bold text-sm">P</span>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Poin</h3>
+                </div>
+
+                {!config.poin && (
+                  <div className="mb-4">
+                    <button
+                      onClick={() => {
+                        setConfig(prev => ({
+                          ...prev!,
+                          poin: {
+                            exchange_rate: 4.0,
+                            minimum_exchange: 500.0
+                          }
+                        }));
+                      }}
+                      className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition-colors"
+                    >
+                      Aktifkan Konfigurasi Poin
+                    </button>
+                  </div>
+                )}
+
+                {config.poin && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Kurs Tukar
+                      </label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        value={config.poin.exchange_rate}
+                        onChange={(e) => updateConfig('poin', 'exchange_rate', parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="4.0"
+                      />
+                      <p className="text-sm text-gray-500 mt-1">
+                        Kurs tukar untuk mengkonversi poin ke mata uang.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Jumlah Tukar Minimum
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={config.poin.minimum_exchange || ''}
+                        onChange={(e) => updateConfig('poin', 'minimum_exchange', e.target.value ? parseFloat(e.target.value) : undefined)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="500.0"
+                      />
+                      <p className="text-sm text-gray-500 mt-1">
+                        Jumlah minimum yang diperlukan untuk tukar poin. Kosongkan untuk menonaktifkan minimum.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Outbox Patterns Tab */}
+          {activeTab === 'outbox_patterns' && (
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Pengaturan Cutoff</h3>
-              <p className="text-sm text-gray-600">Konfigurasi waktu cutoff untuk transaksi</p>
-            </div>
-          </div>
+              {!config.outbox_patterns && (
+                <div className="mb-4">
+                  <button
+                    onClick={initializeOutboxPatterns}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+                  >
+                    Aktifkan Konfigurasi Outbox Patterns
+                  </button>
+                </div>
+              )}
 
-          {loadingCutoff ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-600"></div>
-              <span className="ml-3 text-gray-600">Memuat konfigurasi cutoff...</span>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Cutoff Start Time */}
-              <div>
-                <label htmlFor="cutoff_start" className="block text-sm font-medium text-gray-700 mb-2">
-                  Waktu Mulai Cutoff
-                </label>
-                <input
-                  type="time"
-                  id="cutoff_start"
-                  value={cutoffConfig.cutoff_start}
-                  onChange={(e) => setCutoffConfig({ ...cutoffConfig, cutoff_start: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                />
-                <p className="mt-1 text-sm text-gray-500">
-                  Waktu ketika sistem mulai periode cutoff (format 24 jam)
-                </p>
-              </div>
+              {config.outbox_patterns && (
+                <div>
+                  <div className="flex items-center space-x-3 mb-4">
+                    <div className="h-6 w-6 bg-indigo-100 rounded-full flex items-center justify-center">
+                      <span className="text-indigo-600 font-bold text-sm">OP</span>
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Outbox Patterns</h3>
+                  </div>
+                  <div className="space-y-8">
+                    {/* Static Patterns */}
+                    <div>
+                      <h4 className="text-md font-semibold text-gray-800 mb-4">Pattern Statis (Tidak Dapat Dihapus)</h4>
+                      <div className="space-y-4">
+                        {/* Transaksi Sukses */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Judul Transaksi Sukses
+                            </label>
+                            <input
+                              type="text"
+                              value={config.outbox_patterns.static_patterns.transaksi_sukses.title}
+                              onChange={(e) => updateConfig('outbox_patterns', 'static_transaksi_sukses', {
+                                ...config.outbox_patterns!.static_patterns.transaksi_sukses,
+                                title: e.target.value
+                              })}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Pattern Transaksi Sukses
+                            </label>
+                            <input
+                              type="text"
+                              value={config.outbox_patterns.static_patterns.transaksi_sukses.pattern}
+                              onChange={(e) => updateConfig('outbox_patterns', 'static_transaksi_sukses', {
+                                ...config.outbox_patterns!.static_patterns.transaksi_sukses,
+                                pattern: e.target.value
+                              })}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="(?i)sukses"
+                            />
+                          </div>
+                        </div>
 
-              {/* Cutoff End Time */}
-              <div>
-                <label htmlFor="cutoff_end" className="block text-sm font-medium text-gray-700 mb-2">
-                  Waktu Selesai Cutoff
-                </label>
-                <input
-                  type="time"
-                  id="cutoff_end"
-                  value={cutoffConfig.cutoff_end}
-                  onChange={(e) => setCutoffConfig({ ...cutoffConfig, cutoff_end: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                />
-                <p className="mt-1 text-sm text-gray-500">
-                  Waktu ketika sistem mengakhiri periode cutoff (format 24 jam)
-                </p>
-              </div>
+                        {/* Transaksi Proses */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Judul Transaksi Proses
+                            </label>
+                            <input
+                              type="text"
+                              value={config.outbox_patterns.static_patterns.transaksi_proses.title}
+                              onChange={(e) => updateConfig('outbox_patterns', 'static_transaksi_proses', {
+                                ...config.outbox_patterns!.static_patterns.transaksi_proses,
+                                title: e.target.value
+                              })}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Pattern Transaksi Proses
+                            </label>
+                            <input
+                              type="text"
+                              value={config.outbox_patterns.static_patterns.transaksi_proses.pattern}
+                              onChange={(e) => updateConfig('outbox_patterns', 'static_transaksi_proses', {
+                                ...config.outbox_patterns!.static_patterns.transaksi_proses,
+                                pattern: e.target.value
+                              })}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="(?i)proses"
+                            />
+                          </div>
+                        </div>
 
-              {/* Information Box */}
-              <div className="md:col-span-2">
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <div className="flex items-start space-x-3">
-                    <Info className="h-5 w-5 text-yellow-600 mt-0.5" />
-                    <div className="text-sm text-yellow-800">
-                      <p className="font-medium mb-1">Tentang Waktu Cutoff:</p>
-                      <ul className="list-disc list-inside space-y-1">
-                        <li>Selama periode cutoff, transaksi tertentu mungkin dibatasi atau ditunda</li>
-                        <li>Waktu dalam format 24 jam (HH:MM)</li>
-                        <li>Perubahan berlaku segera setelah disimpan</li>
-                        <li>Contoh: 23:45 sampai 00:15 berarti cutoff dari 11:45 PM sampai 12:15 AM</li>
-                      </ul>
+                        {/* Transaksi Gagal */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Judul Transaksi Gagal
+                            </label>
+                            <input
+                              type="text"
+                              value={config.outbox_patterns.static_patterns.transaksi_gagal.title}
+                              onChange={(e) => updateConfig('outbox_patterns', 'static_transaksi_gagal', {
+                                ...config.outbox_patterns!.static_patterns.transaksi_gagal,
+                                title: e.target.value
+                              })}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Pattern Transaksi Gagal
+                            </label>
+                            <input
+                              type="text"
+                              value={config.outbox_patterns.static_patterns.transaksi_gagal.pattern}
+                              onChange={(e) => updateConfig('outbox_patterns', 'static_transaksi_gagal', {
+                                ...config.outbox_patterns!.static_patterns.transaksi_gagal,
+                                pattern: e.target.value
+                              })}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="(?i)Gagal"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Dynamic Patterns */}
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-md font-semibold text-gray-800">Pattern Dinamis (Dapat Ditambah/Dihapus)</h4>
+                        <button
+                          onClick={addDynamicPattern}
+                          className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors text-sm"
+                        >
+                          + Tambah Pattern
+                        </button>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        {dynamicPatternOrder.map((key, index) => {
+                          const pattern = config.outbox_patterns?.dynamic_patterns[key];
+                          if (!pattern) return null;
+                          return (
+                            <div key={`pattern-${index}`} className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border border-gray-200 rounded-md">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Key Pattern
+                                </label>
+                                <input
+                                  type="text"
+                                  value={key}
+                                  onChange={(e) => {
+                                    const newKey = e.target.value.replace(/\s+/g, ''); // Remove all spaces
+                                    if (newKey !== key) {
+                                      // Update the key in the dynamic patterns
+                                      setConfig(prev => {
+                                        if (!prev?.outbox_patterns) return null;
+                                        const newDynamicPatterns = { ...prev.outbox_patterns.dynamic_patterns };
+                                        const patternData = newDynamicPatterns[key];
+                                        delete newDynamicPatterns[key];
+                                        newDynamicPatterns[newKey] = patternData;
+                                        
+                                        return {
+                                          ...prev,
+                                          outbox_patterns: {
+                                            ...prev.outbox_patterns,
+                                            dynamic_patterns: newDynamicPatterns
+                                          }
+                                        };
+                                      });
+                                      
+                                      // Update the order array
+                                      setDynamicPatternOrder(prev => prev.map(k => k === key ? newKey : k));
+                                    }
+                                  }}
+                                  onBlur={(e) => {
+                                    // Ensure no spaces on blur (when user finishes editing)
+                                    const trimmedKey = e.target.value.replace(/\s+/g, '');
+                                    if (trimmedKey !== e.target.value) {
+                                      e.target.value = trimmedKey;
+                                      if (trimmedKey !== key) {
+                                        setConfig(prev => {
+                                          if (!prev?.outbox_patterns) return null;
+                                          const newDynamicPatterns = { ...prev.outbox_patterns.dynamic_patterns };
+                                          const patternData = newDynamicPatterns[key];
+                                          delete newDynamicPatterns[key];
+                                          newDynamicPatterns[trimmedKey] = patternData;
+                                          
+                                          return {
+                                            ...prev,
+                                            outbox_patterns: {
+                                              ...prev.outbox_patterns,
+                                              dynamic_patterns: newDynamicPatterns
+                                            }
+                                          };
+                                        });
+                                        
+                                        // Update the order array
+                                        setDynamicPatternOrder(prev => prev.map(k => k === key ? trimmedKey : k));
+                                      }
+                                    }
+                                  }}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Judul
+                                </label>
+                                <input
+                                  type="text"
+                                  value={pattern.title}
+                                  onChange={(e) => updateConfig('outbox_patterns', `dynamic_${key}`, {
+                                    ...pattern,
+                                    title: e.target.value
+                                  })}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                              </div>
+                              <div className="flex items-end space-x-2">
+                                <div className="flex-1">
+                                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Pattern Regex
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={pattern.pattern}
+                                    onChange={(e) => updateConfig('outbox_patterns', `dynamic_${key}`, {
+                                      ...pattern,
+                                      pattern: e.target.value
+                                    })}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  />
+                                </div>
+                                <button
+                                  onClick={() => removeDynamicPattern(key)}
+                                  className="px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-sm"
+                                >
+                                  Hapus
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        
+                        {dynamicPatternOrder.length === 0 && (
+                          <div className="text-center py-8 text-gray-500">
+                            <p>Belum ada pattern dinamis. Klik "Tambah Pattern" untuk menambahkan.</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-
-      {/* Database Configuration */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <div className="flex items-center space-x-3 mb-6">
-          <Database className="h-6 w-6 text-green-600" />
-          <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Database</h3>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            String Koneksi
-          </label>
-          <div className="relative">
-            <textarea
-              value={config.database_config.connectionstring}
-              onChange={(e) => updateConfig('database_config', 'connectionstring', e.target.value)}
-              className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              rows={3}
-              placeholder="Masukkan string koneksi database"
-            />
-            <button
-              type="button"
-              onClick={() => setShowConnectionString(!showConnectionString)}
-              className="absolute top-2 right-2 p-1"
-            >
-              {showConnectionString ? (
-                <EyeOff className="h-4 w-4 text-gray-400" />
-              ) : (
-                <Eye className="h-4 w-4 text-gray-400" />
               )}
-            </button>
-          </div>
-          <p className="text-sm text-gray-500 mt-1">
-            Format: Server=host,port;Database=name;User Id=user;Password=pass;Encrypt=False
-          </p>
-        </div>
-      </div>
+            </div>
+          )}
 
-      {/* CORS Configuration */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <div className="flex items-center space-x-3 mb-6">
-          <Globe className="h-6 w-6 text-purple-600" />
-          <h3 className="text-lg font-semibold text-gray-900">Konfigurasi CORS</h3>
-        </div>
-
-        {!config.cors_config && (
-          <div className="mb-4">
-            <button
-              onClick={initializeCorsConfig}
-              className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
-            >
-              Aktifkan Konfigurasi CORS
-            </button>
-          </div>
-        )}
-
-        {config.cors_config && (
-          <div className="space-y-6">
-            {/* Allowed Origins */}
+          {/* Cutoff Tab */}
+          {activeTab === 'cutoff' && (
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Origin yang Diizinkan
-                </label>
-                <button
-                  onClick={() => addCorsItem('allowed_origins')}
-                  className="text-sm text-blue-600 hover:text-blue-800"
-                >
-                  + Tambah Origin
-                </button>
+              <div className="flex items-center space-x-3 mb-4">
+                <Clock className="h-6 w-6 text-orange-600" />
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Pengaturan Cutoff</h3>
+                  <p className="text-sm text-gray-600">Konfigurasi waktu cutoff untuk transaksi</p>
+                </div>
               </div>
-              <div className="space-y-2">
-                {config.cors_config.allowed_origins.map((origin, index) => (
-                  <div key={index} className="flex items-center space-x-2">
+
+              {loadingCutoff ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-600"></div>
+                  <span className="ml-3 text-gray-600">Memuat konfigurasi cutoff...</span>
+                </div>
+              ) : cutoffConfig ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Cutoff Start Time */}
+                  <div>
+                    <label htmlFor="cutoff_start" className="block text-sm font-medium text-gray-700 mb-2">
+                      Waktu Mulai Cutoff
+                    </label>
+                    <input
+                      type="time"
+                      id="cutoff_start"
+                      value={cutoffConfig.cutoff_start}
+                      onChange={(e) => setCutoffConfig({ ...cutoffConfig, cutoff_start: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    />
+                    <p className="mt-1 text-sm text-gray-500">
+                      Waktu ketika sistem mulai periode cutoff (format 24 jam)
+                    </p>
+                  </div>
+
+                  {/* Cutoff End Time */}
+                  <div>
+                    <label htmlFor="cutoff_end" className="block text-sm font-medium text-gray-700 mb-2">
+                      Waktu Selesai Cutoff
+                    </label>
+                    <input
+                      type="time"
+                      id="cutoff_end"
+                      value={cutoffConfig.cutoff_end}
+                      onChange={(e) => setCutoffConfig({ ...cutoffConfig, cutoff_end: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    />
+                    <p className="mt-1 text-sm text-gray-500">
+                      Waktu ketika sistem mengakhiri periode cutoff (format 24 jam)
+                    </p>
+                  </div>
+
+                  {/* Information Box */}
+                  <div className="md:col-span-2">
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                      <div className="flex items-start space-x-3">
+                        <Info className="h-5 w-5 text-yellow-600 mt-0.5" />
+                        <div className="text-sm text-yellow-800">
+                          <p className="font-medium mb-1">Tentang Waktu Cutoff:</p>
+                          <ul className="list-disc list-inside space-y-1">
+                            <li>Selama periode cutoff, transaksi tertentu mungkin dibatasi atau ditunda</li>
+                            <li>Waktu dalam format 24 jam (HH:MM)</li>
+                            <li>Perubahan berlaku segera setelah disimpan</li>
+                            <li>Contoh: 23:45 sampai 00:15 berarti cutoff dari 11:45 PM sampai 12:15 AM</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <p>Konfigurasi cutoff belum dimuat. Silakan refresh halaman.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Demo Number Tab */}
+          {activeTab === 'demo_number' && (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <div className="h-6 w-6 bg-gray-100 rounded-full flex items-center justify-center">
+                    <span className="text-gray-600 font-bold text-sm">DN</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Nomor Pengirim Demo</h3>
+                    <p className="text-sm text-gray-600">Konfigurasi nomor demo untuk bypass OTP</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={loadDemoNumber}
+                    className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors text-sm"
+                    disabled={loadingDemoNumber}
+                  >
+                    {loadingDemoNumber ? 'Refreshing...' : 'Refresh'}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const sessionKey = localStorage.getItem('adminSessionKey');
+                        if (!sessionKey) {
+                          setMessage({ type: 'error', text: 'Session key not found. Please login again.' });
+                          return;
+                        }
+                        const apiUrl = await getApiUrl('/admin/demo-config/save');
+                        const res = await fetch(apiUrl, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'X-Token': X_TOKEN_VALUE,
+                            'Session-Key': sessionKey,
+                            'Auth-Seed': authSeed,
+                          },
+                          body: JSON.stringify({ demo_number: demoNumber || '' }),
+                        });
+                        const data = await res.json();
+                        if (res.ok && data.success) {
+                          setMessage({ type: 'success', text: 'Demo number saved' });
+                          loadDemoNumber();
+                        } else {
+                          setMessage({ type: 'error', text: data.message || 'Failed to save demo number' });
+                        }
+                      } catch (e) {
+                        setMessage({ type: 'error', text: 'Network error saving demo number' });
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+              <div>
+                {loadingDemoNumber ? (
+                  <span className="text-sm text-gray-500">Memuat...</span>
+                ) : (
+                  <div className="max-w-md">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Nomor Demo</label>
                     <input
                       type="text"
-                      value={origin}
-                      onChange={(e) => {
-                        const newOrigins = [...config.cors_config!.allowed_origins];
-                        newOrigins[index] = e.target.value;
-                        updateConfig('cors_config', 'allowed_origins', newOrigins);
-                      }}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={demoNumber || ''}
+                      onChange={(e) => setDemoNumber(e.target.value)}
+                      placeholder="contoh: 085156880420 (kosongkan untuk menonaktifkan)"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
-                    <button
-                      onClick={() => removeCorsItem('allowed_origins', index)}
-                      className="px-2 py-1 text-red-600 hover:text-red-800"
-                    >
-                      Remove
-                    </button>
+                    <p className="text-xs text-gray-500 mt-1">Nomor ini akan di-normalisasi otomatis dan digunakan untuk bypass OTP saat login.</p>
+                    <p className="text-xs text-gray-500 mt-1">Pastikan akun demo sudah dibuat menggunakan nomor ini.</p>
                   </div>
-                ))}
+                )}
               </div>
-            </div>
-
-            {/* Allowed Methods */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Metode yang Diizinkan
-                </label>
-                <button
-                  onClick={() => addCorsItem('allowed_methods')}
-                  className="text-sm text-blue-600 hover:text-blue-800"
-                >
-                  + Tambah Metode
-                </button>
-              </div>
-              <div className="space-y-2">
-                {config.cors_config.allowed_methods.map((method, index) => (
-                  <div key={index} className="flex items-center space-x-2">
-                    <input
-                      type="text"
-                      value={method}
-                      onChange={(e) => {
-                        const newMethods = [...config.cors_config!.allowed_methods];
-                        newMethods[index] = e.target.value;
-                        updateConfig('cors_config', 'allowed_methods', newMethods);
-                      }}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <button
-                      onClick={() => removeCorsItem('allowed_methods', index)}
-                      className="px-2 py-1 text-red-600 hover:text-red-800"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Allowed Headers */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Header yang Diizinkan
-                </label>
-                <button
-                  onClick={() => addCorsItem('allowed_headers')}
-                  className="text-sm text-blue-600 hover:text-blue-800"
-                >
-                  + Tambah Header
-                </button>
-              </div>
-              <div className="space-y-2">
-                {config.cors_config.allowed_headers.map((header, index) => (
-                  <div key={index} className="flex items-center space-x-2">
-                    <input
-                      type="text"
-                      value={header}
-                      onChange={(e) => {
-                        const newHeaders = [...config.cors_config!.allowed_headers];
-                        newHeaders[index] = e.target.value;
-                        updateConfig('cors_config', 'allowed_headers', newHeaders);
-                      }}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <button
-                      onClick={() => removeCorsItem('allowed_headers', index)}
-                      className="px-2 py-1 text-red-600 hover:text-red-800"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Allow Credentials */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Izinkan Kredensial
-              </label>
-              <div className="flex items-center space-x-3">
-                <input
-                  type="checkbox"
-                  checked={config.cors_config.allow_credentials}
-                  onChange={(e) => updateConfig('cors_config', 'allow_credentials', e.target.checked)}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <span className="text-sm text-gray-600">
-                  {config.cors_config.allow_credentials ? 'Diaktifkan' : 'Dinonaktifkan'}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Demo Number (from main.toml via Admin API) */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="h-6 w-6 bg-gray-100 rounded-full flex items-center justify-center">
-              <span className="text-gray-600 font-bold text-sm">DN</span>
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Nomor Pengirim Demo</h3>
-              <p className="text-sm text-gray-600">Konfigurasi nomor demo untuk bypass OTP</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={loadDemoNumber}
-              className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors text-sm"
-              disabled={loadingDemoNumber}
-            >
-              {loadingDemoNumber ? 'Refreshing...' : 'Refresh'}
-            </button>
-            <button
-              onClick={async () => {
-                try {
-                  const sessionKey = localStorage.getItem('adminSessionKey');
-                  if (!sessionKey) {
-                    setMessage({ type: 'error', text: 'Session key not found. Please login again.' });
-                    return;
-                  }
-                  const apiUrl = await getApiUrl('/admin/demo-config/save');
-                  const res = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'X-Token': X_TOKEN_VALUE,
-                      'Session-Key': sessionKey,
-                      'Auth-Seed': authSeed,
-                    },
-                    body: JSON.stringify({ demo_number: demoNumber || '' }),
-                  });
-                  const data = await res.json();
-                  if (res.ok && data.success) {
-                    setMessage({ type: 'success', text: 'Demo number saved' });
-                    loadDemoNumber();
-                  } else {
-                    setMessage({ type: 'error', text: data.message || 'Failed to save demo number' });
-                  }
-                } catch (e) {
-                  setMessage({ type: 'error', text: 'Network error saving demo number' });
-                }
-              }}
-              className="px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
-            >
-              Save
-            </button>
-          </div>
-        </div>
-        <div className="mt-4">
-          {loadingDemoNumber ? (
-            <span className="text-sm text-gray-500">Memuat...</span>
-          ) : (
-            <div className="max-w-md">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Nomor Demo</label>
-              <input
-                type="text"
-                value={demoNumber || ''}
-                onChange={(e) => setDemoNumber(e.target.value)}
-                placeholder="contoh: 085156880420 (kosongkan untuk menonaktifkan)"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <p className="text-xs text-gray-500 mt-1">Nomor ini akan di-normalisasi otomatis dan digunakan untuk bypass OTP saat login.</p>
-              <p className="text-xs text-gray-500 mt-1">Pastikan akun demo sudah dibuat menggunakan nomor ini.</p>
             </div>
           )}
         </div>
       </div>
-
     </div>
   );
-});
+  }
+);
 
 SecurityManagement.displayName = 'SecurityManagement';
 

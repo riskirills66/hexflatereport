@@ -524,10 +524,6 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
                     <span>{formatFileSize(asset.file_size)}</span>
                     <span>{formatDate(asset.upload_date)}</span>
                   </div>
-                  
-                  <div className="mt-1 text-xs text-gray-500">
-                    by {asset.uploader_name}
-                  </div>
                 </div>
               </div>
             ))}
@@ -581,8 +577,6 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
                       <span>{formatFileSize(asset.file_size)}</span>
                       <span>•</span>
                       <span>{formatDate(asset.upload_date)}</span>
-                      <span>•</span>
-                      <span>by {asset.uploader_name}</span>
                     </div>
                   </div>
 

@@ -18,7 +18,6 @@ import {
   Heading3,
   CheckSquare,
   Minus,
-  ChevronLeft,
   ChevronRight
 } from 'lucide-react';
 import { getApiUrl, X_TOKEN_VALUE } from '../config/api';
@@ -37,25 +36,12 @@ const PrivacyPolicyEditor: React.FC<PrivacyPolicyEditorProps> = ({ authSeed, onN
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
   const [showToolbar, setShowToolbar] = useState(true);
   const [fontSize, setFontSize] = useState(14);
-  const [lineNumbers, setLineNumbers] = useState(true);
-  const [wordWrap, setWordWrap] = useState(true);
-  const [autoSave, setAutoSave] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
   useEffect(() => {
     loadPrivacyPolicy();
   }, []);
 
-  // Auto-save functionality
-  useEffect(() => {
-    if (autoSave && content) {
-      const timer = setTimeout(() => {
-        savePrivacyPolicy();
-      }, 2000); // Auto-save after 2 seconds of inactivity
-
-      return () => clearTimeout(timer);
-    }
-  }, [content, autoSave]);
 
   const loadPrivacyPolicy = async () => {
     try {
@@ -257,14 +243,6 @@ const PrivacyPolicyEditor: React.FC<PrivacyPolicyEditorProps> = ({ authSeed, onN
         <div className="px-6 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <button
-                onClick={() => onNavigate('dashboard')}
-                className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
-              >
-                <ChevronLeft className="h-5 w-5" />
-                <span>Back to Dashboard</span>
-              </button>
-              <div className="h-6 w-px bg-gray-300"></div>
               <div className="flex items-center space-x-2">
                 <FileText className="h-6 w-6 text-indigo-600" />
                 <h1 className="text-xl font-semibold text-gray-900">Privacy Policy Editor</h1>
@@ -449,39 +427,6 @@ const PrivacyPolicyEditor: React.FC<PrivacyPolicyEditorProps> = ({ authSeed, onN
                   <option value={18}>18px</option>
                 </select>
               </div>
-              
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="line-numbers"
-                  checked={lineNumbers}
-                  onChange={(e) => setLineNumbers(e.target.checked)}
-                  className="rounded"
-                />
-                <label htmlFor="line-numbers" className="text-sm text-gray-600">Line Numbers</label>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="word-wrap"
-                  checked={wordWrap}
-                  onChange={(e) => setWordWrap(e.target.checked)}
-                  className="rounded"
-                />
-                <label htmlFor="word-wrap" className="text-sm text-gray-600">Word Wrap</label>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="auto-save"
-                  checked={autoSave}
-                  onChange={(e) => setAutoSave(e.target.checked)}
-                  className="rounded"
-                />
-                <label htmlFor="auto-save" className="text-sm text-gray-600">Auto Save</label>
-              </div>
             </div>
           </div>
         </div>
@@ -500,7 +445,7 @@ const PrivacyPolicyEditor: React.FC<PrivacyPolicyEditorProps> = ({ authSeed, onN
                 style={{
                   fontSize: `${fontSize}px`,
                   lineHeight: '1.5',
-                  whiteSpace: wordWrap ? 'pre-wrap' : 'pre'
+                  whiteSpace: 'pre-wrap'
                 }}
                 placeholder="Start writing your privacy policy in Markdown..."
                 spellCheck={false}

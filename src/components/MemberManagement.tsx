@@ -719,11 +719,6 @@ const MemberManagement = forwardRef<MemberManagementRef, MemberManagementProps>(
                         <div className="text-xs font-medium text-gray-900 truncate">
                           {formatCurrency(member.saldo)}
                         </div>
-                        {member.markup && (
-                          <div className="text-xs text-gray-500">
-                            {member.markup}%
-                          </div>
-                        )}
                       </td>
                       <td className="px-2 py-3">
                         <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
