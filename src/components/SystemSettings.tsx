@@ -2080,6 +2080,34 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                   </h3>
                   <ul className="text-xs text-blue-800 space-y-0.5">
                     <li>
+                      <strong>Group Name Wajib:</strong>
+                    </li>
+                    <li className="ml-4">
+                      <strong>(?P&lt;amount&gt;...)</strong> - Capture group untuk
+                      nominal deposit (wajib)
+                    </li>
+                    <li className="ml-4">
+                      <strong>(?P&lt;name&gt;...)</strong> - Capture group untuk
+                      nama pengirim (wajib)
+                    </li>
+                    <li className="ml-4">
+                      <strong>(?P&lt;note&gt;...)</strong> - Capture group untuk
+                      catatan/pesan (wajib)
+                    </li>
+                    <li className="mt-2">
+                      <strong>Group Name Bank (opsional):</strong>
+                    </li>
+                    <li className="ml-4">
+                      <strong>(?P&lt;bank_bankname&gt;...)</strong> - Capture
+                      group untuk nomor rekening bank (contoh:{" "}
+                      <strong>bank_bri</strong>, <strong>bank_mandiri</strong>,{" "}
+                      <strong>bank_bni</strong>, <strong>bank_bca</strong>,{" "}
+                      <strong>bank_bsi</strong>)
+                    </li>
+                    <li className="mt-2">
+                      <strong>Bank Tutup:</strong>
+                    </li>
+                    <li className="ml-4">
                       <strong>bank_close_bankname</strong> - Jika bank tutup,
                       gunakan regex group name dengan pola{" "}
                       <strong>bank_close_bankname</strong> (contoh:{" "}
@@ -2295,6 +2323,10 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                       untuk denda
                     </li>
                     <li>
+                      <strong>(?P&lt;custom&gt;[^/]+)</strong> - Capture group
+                      untuk custom group (bebas ditambahkan sebagai opsional)
+                    </li>
+                    <li>
                       <strong>\\d+</strong> - Mencocokkan satu atau lebih digit
                     </li>
                     <li>
@@ -2381,11 +2413,15 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                     </li>
                     <li>
                       <strong>regex</strong> - Pattern regex untuk parsing data
-                      dari response
+                      dari response. <strong>Catatan:</strong> Nama group regex
+                      (contoh: <strong>(?P&lt;nama&gt;...)</strong>,{" "}
+                      <strong>(?P&lt;tagihan&gt;...)</strong>) akan menjadi nama
+                      key detail pada struk
                     </li>
                     <li>
                       <strong>highlight_key</strong> - Key yang akan
-                      di-highlight pada struk
+                      di-highlight pada struk (harus sesuai dengan nama group
+                      regex)
                     </li>
                     <li>
                       <strong>dash</strong> - Untuk menambahkan separator (-)
