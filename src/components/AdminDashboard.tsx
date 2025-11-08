@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import {
   Settings,
   User,
@@ -160,6 +160,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Analytics dashboard ref
   const analyticsDashboardRef = useRef<AnalyticsDashboardRef>(null);
+
+  // Dashboard overview ref
+  const dashboardOverviewRef = useRef<{ refresh: () => void } | null>(null);
 
   // Session manager ref
   const sessionManagerRef = useRef<SessionManagerRef>(null);
@@ -780,6 +783,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           onNavigate={setActiveSection}
           gridCols={gridCols}
           statsGridRef={statsGridRef}
+          ref={dashboardOverviewRef}
         />
       ),
     },
@@ -1143,6 +1147,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </h1>
                   </div>
                 </div>
+                {activeSection === "dashboard" && dashboardOverviewRef.current && (
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    <button
+                      onClick={() => dashboardOverviewRef.current?.refresh()}
+                      className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors"
+                    >
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                      <span>Refresh</span>
+                    </button>
+                  </div>
+                )}
                 {activeSection === "logs" && systemLogsRef.current && (
                   <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                     <button
@@ -1397,6 +1412,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               {/* Right: Action Buttons */}
               <div className="flex items-center justify-end gap-2">
+              {/* Dashboard Refresh Button - Only show for dashboard section */}
+              {activeSection === "dashboard" && dashboardOverviewRef.current && (
+                <button
+                  onClick={() => dashboardOverviewRef.current?.refresh()}
+                  className="flex items-center space-x-2 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  <span>Refresh</span>
+                </button>
+              )}
+
               {/* Member Management Refresh Button - Only show for users section */}
               {activeSection === "users" && (
                 <button
@@ -1749,12 +1775,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 };
 
 // Proper Dashboard Overview Component
-const DashboardOverview: React.FC<{
+const DashboardOverview = forwardRef<{ refresh: () => void }, {
   authSeed: string;
   onNavigate: (section: string) => void;
   gridCols: string;
   statsGridRef: React.RefObject<HTMLDivElement>;
-}> = ({ authSeed, onNavigate, gridCols, statsGridRef }) => {
+}>(({ authSeed, onNavigate, gridCols, statsGridRef }, ref) => {
   const [stats, setStats] = useState({
     totalResellers: 0,
     todayTransactions: 0,
@@ -2224,6 +2250,10 @@ const DashboardOverview: React.FC<{
     }
   };
 
+  useImperativeHandle(ref, () => ({
+    refresh: refreshDashboard,
+  }));
+
   // Skeleton loader component
   const SkeletonLoader = ({ className = "" }: { className?: string }) => (
     <div className={`animate-pulse bg-gray-200 rounded ${className}`}></div>
@@ -2233,34 +2263,13 @@ const DashboardOverview: React.FC<{
     <div className="space-y-6">
       {/* Welcome Section */}
       <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg p-6 text-white">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold mb-2">
-              Selamat Datang di Panel Admin
-            </h1>
-            <p className="text-indigo-100">
-              Kelola sistem dan pantau aktivitas aplikasi dari sini
-            </p>
-          </div>
-          <button
-            onClick={refreshDashboard}
-            className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
-            <span>Refresh</span>
-          </button>
+        <div>
+          <h1 className="text-2xl font-bold mb-2">
+            Selamat Datang di Panel Admin
+          </h1>
+          <p className="text-indigo-100">
+            Kelola sistem dan pantau aktivitas aplikasi dari sini
+          </p>
         </div>
       </div>
 
@@ -2606,7 +2615,9 @@ const DashboardOverview: React.FC<{
       </div>
     </div>
   );
-};
+});
+
+DashboardOverview.displayName = "DashboardOverview";
 
 interface PublishResponse {
   success: boolean;

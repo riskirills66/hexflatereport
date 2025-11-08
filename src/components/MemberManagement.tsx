@@ -961,29 +961,33 @@ const MemberManagement = forwardRef<MemberManagementRef, MemberManagementProps>(
                     <h4 className="text-lg font-medium">Sesi Aktif: {enhancedMemberDetail.active_sessions} dari {enhancedMemberDetail.total_sessions}</h4>
                   </div>
                   
-                  {enhancedMemberDetail.sessions.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="w-full table-fixed divide-y divide-gray-200" style={{ minWidth: '900px' }}>
-                        <colgroup>
-                          <col style={{ width: '20%' }} />
-                          <col style={{ width: '26%' }} />
-                          <col style={{ width: '18%' }} />
-                          <col style={{ width: '14%' }} />
-                          <col style={{ width: '12%' }} />
-                          <col style={{ width: '10%' }} />
-                        </colgroup>
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Telepon</th>
-                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Perangkat</th>
-                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IMEI</th>
-                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Keamanan</th>
-                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dibuat</th>
-                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {enhancedMemberDetail.sessions.map((session) => (
+                  {(() => {
+                    const filteredSessions = enhancedMemberDetail.sessions.filter(
+                      session => session.imei && session.device_model
+                    );
+                    return filteredSessions.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full table-fixed divide-y divide-gray-200" style={{ minWidth: '900px' }}>
+                          <colgroup>
+                            <col style={{ width: '20%' }} />
+                            <col style={{ width: '26%' }} />
+                            <col style={{ width: '18%' }} />
+                            <col style={{ width: '14%' }} />
+                            <col style={{ width: '12%' }} />
+                            <col style={{ width: '10%' }} />
+                          </colgroup>
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Telepon</th>
+                              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Perangkat</th>
+                              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IMEI</th>
+                              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Keamanan</th>
+                              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dibuat</th>
+                              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {filteredSessions.map((session) => (
                             <tr key={session.session_key} className="hover:bg-gray-50">
                               <td className="px-2 py-2 text-xs text-gray-900 truncate whitespace-nowrap align-middle">
                                 {session.number}
@@ -1037,13 +1041,14 @@ const MemberManagement = forwardRef<MemberManagementRef, MemberManagementProps>(
                                 </div>
                               </td>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <p className="text-gray-500 text-center py-4">Tidak ada sesi aktif ditemukan.</p>
-                  )}
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-center py-4">Tidak ada sesi aktif ditemukan.</p>
+                    );
+                  })()}
                 </div>
               )}
 
