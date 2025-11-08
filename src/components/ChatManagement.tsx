@@ -207,14 +207,23 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
   const [licenseLoading, setLicenseLoading] = useState(true);
   const [licenseError, setLicenseError] = useState<string | null>(null);
 
-  // Debug selectedConversation changes and update ref
+  const onConversationChangeRef = useRef(onConversationChange);
+  const onConnectionStatusChangeRef = useRef(onConnectionStatusChange);
+  
   useEffect(() => {
-    console.log("🔔 selectedConversation changed:", selectedConversation?.id);
+    onConversationChangeRef.current = onConversationChange;
+  }, [onConversationChange]);
+  
+  useEffect(() => {
+    onConnectionStatusChangeRef.current = onConnectionStatusChange;
+  }, [onConnectionStatusChange]);
+
+  useEffect(() => {
     selectedConversationRef.current = selectedConversation;
-    if (onConversationChange) {
-      onConversationChange(selectedConversation);
+    if (onConversationChangeRef.current) {
+      onConversationChangeRef.current(selectedConversation);
     }
-  }, [selectedConversation, onConversationChange]);
+  }, [selectedConversation]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -292,58 +301,31 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
     message: "",
   });
 
-  // WebSocket connection
   const getWebSocketUrl = () => {
     const sessionKey = localStorage.getItem("adminSessionKey");
-    console.log("=== WebSocket URL Construction Debug ===");
-    console.log("Session key from localStorage:", sessionKey);
-    console.log("Auth seed:", authSeed);
-    console.log("Backend host:", import.meta.env.VITE_WS_BACKEND_HOST);
-
-    if (!sessionKey) {
-      console.log("❌ No session key found, WebSocket will not be available");
-      return null;
-    }
-
-    if (!authSeed) {
-      console.log("❌ No auth seed available, WebSocket will not be available");
+    if (!sessionKey || !authSeed) {
       return null;
     }
 
     const backendHost = import.meta.env.VITE_WS_BACKEND_HOST;
     if (!backendHost) {
-      console.warn(
-        "❌ VITE_WS_BACKEND_HOST environment variable is not set. WebSocket will not be available.",
-      );
+      console.warn("VITE_WS_BACKEND_HOST not set");
       return null;
     }
 
-    // Always use wss for production, ws for local development
     const protocol =
       backendHost.includes("localhost") || backendHost.includes("127.0.0.1")
         ? "ws:"
         : "wss:";
-    const url = `${protocol}//${backendHost}/ws/chat?session_key=${encodeURIComponent(sessionKey)}&auth_seed=${encodeURIComponent(authSeed)}`;
-    console.log("✅ WebSocket URL constructed:", url);
-    console.log("=== End WebSocket URL Construction Debug ===");
-    return url;
+    return `${protocol}//${backendHost}/ws/chat?session_key=${encodeURIComponent(sessionKey)}&auth_seed=${encodeURIComponent(authSeed)}`;
   };
 
   const handleWebSocketMessage = (message: any) => {
-    console.log("🔔 WebSocket message received:", message);
-    console.log("🔔 Message type:", message.message_type);
     const currentSelectedConversation = selectedConversationRef.current;
-    console.log("🔔 Selected conversation ID:", currentSelectedConversation?.id);
 
     switch (message.message_type) {
       case "new_message":
         const newMsg = message.data;
-        console.log("🔔 New message data:", newMsg);
-        console.log("🔔 Message conversation ID:", newMsg.conversation_id);
-        console.log("🔔 Selected conversation ID:", currentSelectedConversation?.id);
-        console.log("🔔 Selected conversation object:", currentSelectedConversation);
-        console.log("🔔 Message sender type:", newMsg.sender_type);
-        console.log("🔔 Message sender name:", newMsg.sender_name);
 
         // Always update conversations list to show new message and unresolve if resolved
         setConversations((prev) => {
@@ -388,9 +370,6 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
           currentSelectedConversation &&
           newMsg.conversation_id === currentSelectedConversation.id
         ) {
-          console.log("🔔 Adding message to current conversation");
-          
-          // Update selected conversation to unresolve if user sent message
           if (newMsg.sender_type === "user") {
             setSelectedConversation((prev) =>
               prev ? { ...prev, resolved: 0 } : null,
@@ -398,9 +377,6 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
           }
           
           setMessages((prev) => {
-            console.log("🔔 Current messages before adding:", prev.length);
-
-            // Check if this is a real message that should replace an optimistic one
             const optimisticIndex = prev.findIndex(
               (msg) =>
                 msg.tempId &&
@@ -410,81 +386,35 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
                 Math.abs(
                   new Date(msg.created_at).getTime() -
                     new Date(newMsg.created_at).getTime(),
-                ) < 10000, // Within 10 seconds
+                ) < 10000,
             );
 
             if (optimisticIndex !== -1) {
-              // Replace optimistic message with real message
-              console.log("🔔 Replacing optimistic message with real message", {
-                optimisticIndex,
-                tempId: prev[optimisticIndex].tempId,
-                message: newMsg.message,
-                realId: newMsg.id,
-              });
               const newMessages = [...prev];
               newMessages[optimisticIndex] = newMsg;
               return newMessages;
-            } else {
-              console.log("🔔 No optimistic message found to replace", {
-                message: newMsg.message,
-                senderType: newMsg.sender_type,
-                conversationId: newMsg.conversation_id,
-                createdAt: newMsg.created_at,
-                availableOptimistic: prev
-                  .filter((msg) => msg.tempId)
-                  .map((msg) => ({
-                    tempId: msg.tempId,
-                    message: msg.message,
-                    senderType: msg.sender_type,
-                    conversationId: msg.conversation_id,
-                    createdAt: msg.created_at,
-                  })),
-              });
             }
 
-            // Check if message already exists to avoid duplicates
-            const messageExists = prev.some((msg) => msg.id === newMsg.id);
-            if (messageExists) {
-              console.log("🔔 Message already exists, skipping duplicate");
+            if (prev.some((msg) => msg.id === newMsg.id)) {
               return prev;
             }
 
-            // Sort messages by created_at to maintain chronological order
-            const newMessages = [...prev, newMsg].sort(
+            return [...prev, newMsg].sort(
               (a, b) =>
                 new Date(a.created_at).getTime() -
                 new Date(b.created_at).getTime(),
             );
-            console.log("🔔 New messages after adding:", newMessages.length);
-            return newMessages;
-          });
-        } else {
-          console.log(
-            "🔔 Message not for current conversation, updating conversation list only",
-          );
-          console.log("🔔 Comparison details:", {
-            hasSelectedConversation: !!currentSelectedConversation,
-            messageConvId: newMsg.conversation_id,
-            selectedConvId: currentSelectedConversation?.id,
-            areEqual:
-              currentSelectedConversation &&
-              newMsg.conversation_id === currentSelectedConversation.id,
           });
         }
         break;
       case "conversation_update":
-        console.log("🔔 Conversation update received:", message.data);
-        // Update specific conversation in the list or add if it doesn't exist
         const updatedConv = message.data;
         let isNewConversation = false;
         
         setConversations((prev) => {
-          // Check if conversation already exists
           const exists = prev.some((conv) => conv.id === updatedConv.id);
           
           if (!exists) {
-            // Add new conversation to the list (at the beginning for new conversations)
-            console.log("🔔 Adding new conversation to list:", updatedConv.id);
             isNewConversation = true;
             const newConv: ChatConversation = {
               id: updatedConv.id,
@@ -517,31 +447,22 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
                   }
                 : conv,
             );
-            console.log("🔔 Updated conversations list:", updated.length);
             return updated;
           }
         });
         
-        // Show notification for new conversations (show even when window is focused)
         if (isNewConversation) {
-          console.log("🔔 New conversation detected, showing notification");
           const notificationBody = updatedConv.last_message
             ? updatedConv.last_message.length > 50
               ? updatedConv.last_message.substring(0, 50) + "..."
               : updatedConv.last_message
             : "New conversation started";
-          console.log("🔔 Notification data:", {
-            title: `New conversation from ${updatedConv.user_name}`,
-            body: notificationBody,
-          });
           showNotification(
             `New conversation from ${updatedConv.user_name}`,
             notificationBody,
             "conversationUpdate",
-            true, // Show even when window is focused
+            true,
           );
-        } else {
-          console.log("🔔 Conversation update - not a new conversation");
         }
         
         // Update selected conversation if it's the one being updated
@@ -552,16 +473,10 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
         }
         break;
       case "connection_established":
-        console.log("🔔 WebSocket connection established:", message.data);
         break;
       case "subscription_confirmed":
-        console.log(
-          "🔔 Subscription confirmed for conversation:",
-          message.data.conversation_id,
-        );
         break;
       case "existing_message":
-        console.log("🔔 Existing message received:", message.data);
         // Handle existing messages (sent when subscribing to a conversation)
         const existingMsg = message.data;
         if (
@@ -585,35 +500,23 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
         }
         break;
       case "pong":
-        console.log("🔔 Pong received");
         break;
       case "error":
-        console.error("🔔 WebSocket error:", message.data.message);
+        console.error("WebSocket error:", message.data?.message);
         break;
       default:
-        console.log("🔔 Unknown WebSocket message type:", message.message_type);
+        break;
     }
   };
 
-  // Update WebSocket URL when session key becomes available
   useEffect(() => {
-    console.log("WebSocket URL effect triggered");
-
-    // Add a small delay to ensure the page is fully loaded
     const timer = setTimeout(() => {
       const url = getWebSocketUrl();
-      console.log("WebSocket URL constructed:", url);
-      console.log(
-        "Session key available:",
-        !!localStorage.getItem("adminSessionKey"),
-      );
-      console.log("Auth seed available:", !!authSeed);
-      console.log("Backend host:", import.meta.env.VITE_WS_BACKEND_HOST);
       setWebSocketUrl(url || "");
-    }, 1000); // 1 second delay
+    }, 1000);
 
     return () => clearTimeout(timer);
-  }, [authSeed]); // Re-run when authSeed changes
+  }, [authSeed]);
 
   const {
     isConnected,
@@ -625,24 +528,16 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
     url: webSocketUrl && authSeed ? webSocketUrl : "", // Connect if we have both URL and authSeed
     onMessage: handleWebSocketMessage,
     onOpen: () => {
-      console.log("WebSocket connected for chat");
-      // Auto-resubscribe to current conversation when reconnected
       if (selectedConversation) {
         setTimeout(() => {
-          console.log(
-            "🔔 Auto-resubscribing to conversation after reconnect:",
-            selectedConversation.id,
-          );
           sendWebSocketMessage({
             message_type: "subscribe_conversation",
             conversation_id: selectedConversation.id,
           });
-        }, 1000); // Increased delay to ensure WebSocket is fully ready
+        }, 1000);
       }
     },
-    onClose: () => {
-      console.log("WebSocket disconnected for chat");
-    },
+    onClose: () => {},
     onError: (error) => {
       console.error("WebSocket error:", error);
     },
@@ -656,12 +551,11 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
     connectionStatus
   }));
 
-  // Notify parent when connection status changes
   useEffect(() => {
-    if (onConnectionStatusChange) {
-      onConnectionStatusChange(connectionStatus);
+    if (onConnectionStatusChangeRef.current) {
+      onConnectionStatusChangeRef.current(connectionStatus);
     }
-  }, [connectionStatus, onConnectionStatusChange]);
+  }, [connectionStatus]);
 
   // Load chat license status from existing license status API
   const loadChatLicenseStatus = async () => {
@@ -756,16 +650,10 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
         const parsed = JSON.parse(saved);
         // Ensure max volume and all notifications are enabled
         setNotificationSettings({
+          ...parsed,
           desktopNotifications: true,
           soundEnabled: true,
           soundVolume: 1.0,
-          notificationTypes: {
-            newMessage: true,
-            conversationUpdate: true,
-            assignment: true,
-          },
-          ...parsed,
-          soundVolume: 1.0, // Always use max volume
           notificationTypes: {
             newMessage: true,
             conversationUpdate: true,
@@ -821,39 +709,63 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
 
   const playNotificationSound = () => {
     if (notificationSettings.soundEnabled) {
-      try {
-        // Create a simple beep sound using Web Audio API
-        const audioContext = new (window.AudioContext ||
-          (window as any).webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-
-        oscillator.frequency.setValueAtTime(800, audioContext.currentTime); // 800Hz frequency
-        oscillator.type = "sine";
-
-        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-        gainNode.gain.linearRampToValueAtTime(
-          notificationSettings.soundVolume * 0.3,
-          audioContext.currentTime + 0.01,
-        );
-        gainNode.gain.exponentialRampToValueAtTime(
-          0.001,
-          audioContext.currentTime + 0.3,
-        );
-
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.3);
-      } catch (error) {
-        console.error("Failed to play notification sound:", error);
-        // Fallback: try to play a simple audio file if available
-        if (audioRef.current) {
-          audioRef.current.volume = notificationSettings.soundVolume;
-          audioRef.current.play().catch(console.error);
+      // Try to use audio file first if available
+      if (audioRef.current) {
+        const audio = audioRef.current;
+        audio.volume = notificationSettings.soundVolume;
+        audio.currentTime = 0; // Reset to start
+        
+        // Try to play the audio file
+        const playPromise = audio.play();
+        
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              // Audio file played successfully
+            })
+            .catch(() => {
+              // Audio file failed (404 or other error), fall back to Web Audio API
+              playWebAudioSound();
+            });
+        } else {
+          // If play() returns undefined, try Web Audio API
+          playWebAudioSound();
         }
+        return;
       }
+      // Fallback to Web Audio API if no audio element
+      playWebAudioSound();
+    }
+  };
+
+  const playWebAudioSound = () => {
+    try {
+      // Create a simple beep sound using Web Audio API
+      const audioContext = new (window.AudioContext ||
+        (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+      oscillator.type = "sine";
+
+      gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+      gainNode.gain.linearRampToValueAtTime(
+        notificationSettings.soundVolume * 0.3,
+        audioContext.currentTime + 0.01,
+      );
+      gainNode.gain.exponentialRampToValueAtTime(
+        0.001,
+        audioContext.currentTime + 0.3,
+      );
+
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.3);
+    } catch (error) {
+      console.error("Failed to play notification sound:", error);
     }
   };
 
@@ -874,15 +786,10 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
     };
   };
 
-  // Load chat concepts
   const loadConcepts = async (search: string = "") => {
-    console.log("🔔 Loading concepts with search:", search);
     try {
       const sessionKey = localStorage.getItem("adminSessionKey");
-      if (!sessionKey) {
-        console.log("🔔 No session key for loading concepts");
-        return;
-      }
+      if (!sessionKey) return;
 
       const apiUrl = await getApiUrl("/chat/concepts");
       const params = new URLSearchParams({
@@ -890,8 +797,6 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
         auth_seed: authSeed,
         ...(search && { search }),
       });
-
-      console.log("🔔 Concepts API URL:", `${apiUrl}?${params}`);
 
       const response = await fetch(`${apiUrl}?${params}`, {
         method: "GET",
@@ -901,27 +806,13 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
         },
       });
 
-      console.log("🔔 Concepts response status:", response.status);
-
       const data = await response.json();
-      console.log("🔔 Concepts response data:", data);
-
       if (data.success) {
-        const concepts = data.concepts || [];
-        console.log("🔔 Loaded concepts:", concepts.length);
-        setConcepts(concepts);
-
-        // Auto-select the first (closest) match
-        if (concepts.length > 0) {
-          setSelectedConceptIndex(0);
-        } else {
-          setSelectedConceptIndex(-1);
-        }
-      } else {
-        console.log("🔔 Failed to load concepts:", data.message);
+        setConcepts(data.concepts || []);
+        setSelectedConceptIndex(data.concepts?.length > 0 ? 0 : -1);
       }
     } catch (error) {
-      console.error("🔔 Exception loading concepts:", error);
+      console.error("Failed to load concepts:", error);
     }
   };
 
@@ -1077,91 +968,58 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
     }, 2500);
   };
 
-  // Handle concept creation from inline input
   const handleConceptCreation = async () => {
-    console.log("🔔 Starting concept creation...");
-    console.log("🔔 New message:", newMessage);
-
     if (!newMessage.trim() || !newMessage.startsWith("+")) {
-      console.log("🔔 Invalid message format, returning");
       return;
     }
 
-    // Parse +keyword content from the message
     const parts = newMessage.substring(1).split(" ");
     const keyword = parts[0];
     const content = parts.slice(1).join(" ");
 
-    console.log("🔔 Parsed keyword:", keyword);
-    console.log("🔔 Parsed content:", content);
-
     if (!keyword || !content) {
-      console.log("🔔 Missing keyword or content, showing error");
       showConceptFeedback("error", "Invalid format: +keyword content");
       return;
     }
 
     try {
       const sessionKey = localStorage.getItem("adminSessionKey");
-      if (!sessionKey) {
-        console.log("🔔 No session key found, returning");
-        return;
-      }
+      if (!sessionKey) return;
 
-      console.log("🔔 Making API request to create concept...");
       const apiUrl = await getApiUrl("/chat/concepts");
-      console.log("🔔 API URL:", apiUrl);
-
-      const requestBody = {
-        session_key: sessionKey,
-        auth_seed: authSeed,
-        keyword: keyword.trim(),
-        title: keyword.charAt(0).toUpperCase() + keyword.slice(1),
-        content: content.trim(),
-      };
-      console.log("🔔 Request body:", requestBody);
-
       const response = await fetch(apiUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-Token": X_TOKEN_VALUE,
         },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({
+          session_key: sessionKey,
+          auth_seed: authSeed,
+          keyword: keyword.trim(),
+          title: keyword.charAt(0).toUpperCase() + keyword.slice(1),
+          content: content.trim(),
+        }),
       });
 
-      console.log("🔔 Response status:", response.status);
-      console.log("🔔 Response ok:", response.ok);
-
       if (!response.ok) {
-        console.log("🔔 HTTP error response, status:", response.status);
-        const errorText = await response.text();
-        console.log("🔔 Error response text:", errorText);
         showConceptFeedback("error", "Failed to save concept");
         return;
       }
 
       const data = await response.json();
-      console.log("🔔 Response data:", data);
-      console.log("🔔 Data success:", data.success);
-      console.log("🔔 Data message:", data.message);
-
       if (data.success === true) {
-        console.log("🔔 Concept creation successful, updating UI");
         setNewMessage("");
         loadConcepts(conceptSearch);
         showConceptFeedback("success", "Concept saved successfully");
-
-        // Focus input after concept creation
         if (messageInputRef.current) {
           messageInputRef.current.focus();
         }
       } else {
-        console.log("🔔 Concept creation failed, showing error");
         showConceptFeedback("error", "Failed to save concept");
       }
     } catch (error) {
-      console.error("🔔 Exception in concept creation:", error);
+      console.error("Failed to create concept:", error);
       showConceptFeedback("error", "Failed to save concept");
     }
   };
@@ -1172,51 +1030,31 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
     type: "newMessage" | "conversationUpdate" | "assignment" = "newMessage",
     showWhenFocused: boolean = false,
   ) => {
-    console.log("🔔 showNotification called:", { title, body, type, showWhenFocused });
-    console.log("🔔 Notification settings:", {
-      desktopNotifications: notificationSettings.desktopNotifications,
-      notificationTypes: notificationSettings.notificationTypes,
-      permission: notificationPermission,
-      isFocused: document.hasFocus(),
-    });
-
-    // Always play sound if enabled, regardless of focus
     playNotificationSound();
 
-    // Only show desktop notification if enabled and notification type is enabled
     if (
       !notificationSettings.desktopNotifications ||
       !notificationSettings.notificationTypes[type]
     ) {
-      console.log("🔔 Notification skipped - settings check failed");
       return;
     }
 
-    // Check if window is focused - only show notification if not focused (unless showWhenFocused is true)
     if (!showWhenFocused && document.hasFocus()) {
-      console.log("🔔 Notification skipped - window is focused and showWhenFocused is false");
       return;
     }
 
     if (notificationPermission === "granted") {
-      console.log("🔔 Showing desktop notification");
       new Notification(title, {
         body,
         icon: "/favicon.ico",
         tag: "chat-notification",
       });
-    } else {
-      console.log("🔔 Notification permission not granted:", notificationPermission);
     }
   };
 
   // Load messages when conversation is selected
   useEffect(() => {
     if (selectedConversation) {
-      console.log(
-        "🔔 Loading messages for conversation:",
-        selectedConversation.id,
-      );
       loadMessages(selectedConversation.id);
     }
   }, [selectedConversation]);
@@ -1246,26 +1084,15 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
 
   useEffect(() => {
     if (selectedConversation && isConnected) {
-      console.log("🔔 Subscribing to conversation:", selectedConversation.id);
-      // Add a delay to ensure WebSocket is fully ready and connection is established
       const timer = setTimeout(() => {
-        console.log(
-          "🔔 Sending subscription message for conversation:",
-          selectedConversation.id,
-        );
         sendWebSocketMessage({
           message_type: "subscribe_conversation",
           conversation_id: selectedConversation.id,
         });
-      }, 1000); // Increased delay to ensure WebSocket is fully ready
+      }, 1000);
 
       return () => {
         clearTimeout(timer);
-        // Unsubscribe from conversation updates when switching conversations
-        console.log(
-          "🔔 Unsubscribing from conversation:",
-          selectedConversation.id,
-        );
         sendWebSocketMessage({
           message_type: "unsubscribe_conversation",
           conversation_id: selectedConversation.id,
@@ -1284,7 +1111,6 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
 
   const loadConversations = async () => {
     try {
-      console.log("🔔 Loading conversations...");
       const sessionKey = localStorage.getItem("adminSessionKey");
       if (!sessionKey) return;
 
@@ -1303,27 +1129,16 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
 
       const data = await response.json();
       if (data.success) {
-        console.log(
-          "🔔 Loaded conversations:",
-          data.conversations?.length || 0,
-        );
         const conversations = data.conversations || [];
-        
-        // Update conversations list
         setConversations(conversations);
 
-        // Check if selected conversation still exists, if not deselect it
         if (selectedConversation) {
           const stillExists = conversations.some(
             (conv: ChatConversation) => conv.id === selectedConversation.id,
           );
           if (!stillExists) {
-            console.log(
-              "🔔 Selected conversation no longer exists, deselecting",
-            );
             setSelectedConversation(null);
           } else {
-            // Update selected conversation with latest data
             const updated = conversations.find(
               (conv: ChatConversation) => conv.id === selectedConversation.id,
             );
@@ -1333,12 +1148,7 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
           }
         }
 
-        // Auto-select the first conversation if none is selected
         if (conversations.length > 0 && !selectedConversation) {
-          console.log(
-            "🔔 Auto-selecting first conversation:",
-            conversations[0].id,
-          );
           setSelectedConversation(conversations[0]);
         }
       }
@@ -1612,12 +1422,7 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
 
       const data = await response.json();
       if (data.success) {
-        // WebSocket will handle adding the real message, so we'll replace the optimistic one
-        // For now, just mark as sent (WebSocket will replace it with real data)
         updateMessageStatus(tempId, true);
-        console.log(
-          "🔔 Message sent successfully, WebSocket will handle UI update",
-        );
       } else {
         updateMessageStatus(tempId, false);
         console.error("Failed to send message:", data.message);
@@ -1914,9 +1719,7 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
               <div
                 key={conversation.id}
                 onClick={() => {
-                  console.log("🔔 Selecting conversation:", conversation.id);
                   setSelectedConversation(conversation);
-                  // Immediately clear unread count for better UX
                   setConversations((prev) =>
                     prev.map((conv) =>
                       conv.id === conversation.id
@@ -2222,7 +2025,13 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
       </div>
 
       {/* Audio element for notifications */}
-      <audio ref={audioRef} preload="auto">
+      <audio 
+        ref={audioRef} 
+        preload="auto"
+        onError={() => {
+          // Silently handle errors - will fall back to Web Audio API
+        }}
+      >
         <source src="/notification-sound.mp3" type="audio/mpeg" />
         <source src="/notification-sound.wav" type="audio/wav" />
       </audio>
