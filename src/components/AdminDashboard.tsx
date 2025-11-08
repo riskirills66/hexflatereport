@@ -22,12 +22,13 @@ import {
   Terminal,
   RocketIcon,
   ChevronDown,
+  RefreshCw,
 } from "lucide-react";
 import { DynamicScreenConfig } from "../types";
 import { SAMPLE_CONFIG } from "../data/sampleConfig";
 import EditorLayout from "./EditorLayout";
 import { getApiUrl, X_TOKEN_VALUE } from "../config/api";
-import MemberManagement from "./MemberManagement";
+import MemberManagement, { MemberManagementRef } from "./MemberManagement";
 import TransactionManagement from "./TransactionManagement";
 import AnalyticsDashboard from "./AnalyticsDashboard";
 import SystemLogs from "./SystemLogs";
@@ -130,6 +131,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [canSendBroadcast, setCanSendBroadcast] = useState(false);
   const [isBroadcastSending, setIsBroadcastSending] = useState(false);
 
+  // Member management ref
+  const memberManagementRef = useRef<MemberManagementRef>(null);
+  const [memberStats, setMemberStats] = useState<{ total: number; loaded: number } | null>(null);
+
   // Chat license status
   const [chatLicenseStatus, setChatLicenseStatus] = useState<{
     is_licensed: boolean;
@@ -200,6 +205,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   useEffect(() => {
     // This will trigger a re-render when chatLicenseStatus changes
   }, [chatLicenseStatus]);
+
+  // Reset member stats when switching away from users section
+  useEffect(() => {
+    if (activeSection !== "users") {
+      setMemberStats(null);
+    }
+  }, [activeSection]);
 
   // Mobile detection and responsive behavior
   useEffect(() => {
@@ -698,7 +710,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       label: "Manajemen Member",
       icon: <User className="h-5 w-5" />,
       description: "Kelola member dan data mereka",
-      component: <MemberManagement authSeed={authSeed} />,
+      component: (
+        <MemberManagement
+          authSeed={authSeed}
+          ref={memberManagementRef}
+          onStatsChange={(total, loaded) => setMemberStats({ total, loaded })}
+        />
+      ),
     },
     {
       id: "transactions",
@@ -870,7 +888,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         } bg-white shadow-lg flex flex-col`}
       >
         {/* Header */}
-        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+        <div className="p-4 flex items-center justify-between">
           {sidebarOpen && (
             <div className="flex items-center space-x-2">
               <div className="h-8 w-8 bg-indigo-600 rounded-lg flex items-center justify-center">
@@ -949,11 +967,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <h1 className="text-lg font-semibold text-gray-900">
                   {activeMenuItem?.label}
                 </h1>
-                <p className="text-xs text-gray-600">
-                  {activeMenuItem?.description}
-                </p>
+                {activeSection === "users" && memberStats ? (
+                  <p className="text-xs text-gray-600">
+                    Kelola {memberStats.total} member • {memberStats.loaded} dimuat
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-600">
+                    {activeMenuItem?.description}
+                  </p>
+                )}
               </div>
             </div>
+
+            {/* Member Management Refresh Button - Only show for users section */}
+            {activeSection === "users" && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => memberManagementRef.current?.refresh()}
+                  className="flex items-center space-x-2 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  <span>Refresh</span>
+                </button>
+              </div>
+            )}
 
             {/* Menu Editor Buttons - Only show for menu-editor section */}
             {activeSection === "menu-editor" && (
@@ -2052,3 +2089,4 @@ interface PublishResponse {
 // Remove the old UserManagement component since we're using MemberManagement now
 
 export default AdminDashboard;
+

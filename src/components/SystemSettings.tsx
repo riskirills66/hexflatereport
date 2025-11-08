@@ -7,8 +7,6 @@ import React, {
 import {
   AlertCircle,
   CheckCircle,
-  Settings as SettingsIcon,
-  Info,
   Search,
   ChevronDown,
   ChevronUp,
@@ -111,9 +109,7 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
       text: string;
     } | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
-    const [expandedSections, setExpandedSections] = useState<Set<string>>(
-      new Set(),
-    );
+    const [activeTab, setActiveTab] = useState<string>("info_config");
     const [expandedReceiptConfigs, setExpandedReceiptConfigs] = useState<
       Set<number>
     >(new Set());
@@ -145,6 +141,34 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
           loadingStates.bantuan,
       );
     }, [loadingStates]);
+
+    // Set initial active tab to first available config when loading completes
+    useEffect(() => {
+      if (!loading) {
+        // Only set if current tab's config doesn't exist
+        const currentTabHasConfig = 
+          (activeTab === "info_config" && infoConfig) ||
+          (activeTab === "tiket_regex" && tiketRegexConfig) ||
+          (activeTab === "check_products" && checkProductsConfig) ||
+          (activeTab === "combotrx_config" && combotrxConfig) ||
+          (activeTab === "cektagihan_config" && cektagihanConfig) ||
+          (activeTab === "receipt_maps_config" && receiptMapsConfig) ||
+          (activeTab === "bantuan_config" && bantuanConfig) ||
+          (activeTab === "textEditing" && appRules);
+
+        if (!currentTabHasConfig) {
+          // Set to first available tab
+          if (infoConfig) setActiveTab("info_config");
+          else if (tiketRegexConfig) setActiveTab("tiket_regex");
+          else if (checkProductsConfig) setActiveTab("check_products");
+          else if (combotrxConfig) setActiveTab("combotrx_config");
+          else if (cektagihanConfig) setActiveTab("cektagihan_config");
+          else if (receiptMapsConfig) setActiveTab("receipt_maps_config");
+          else if (bantuanConfig) setActiveTab("bantuan_config");
+          else if (appRules) setActiveTab("textEditing");
+        }
+      }
+    }, [loading, infoConfig, tiketRegexConfig, checkProductsConfig, combotrxConfig, cektagihanConfig, receiptMapsConfig, bantuanConfig, appRules, activeTab]);
 
     // Synchronize local cektagihan keys with cektagihan config
     useEffect(() => {
@@ -1827,15 +1851,6 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
       return groups;
     };
 
-    const toggleSection = (section: string) => {
-      const newExpanded = new Set(expandedSections);
-      if (newExpanded.has(section)) {
-        newExpanded.delete(section);
-      } else {
-        newExpanded.add(section);
-      }
-      setExpandedSections(newExpanded);
-    };
 
     const toggleReceiptConfig = (configIndex: number) => {
       setExpandedReceiptConfigs((prev) => {
@@ -1881,33 +1896,11 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
     }
 
     const groupedFields = groupFields(appRules);
-    const sectionLabels: Record<string, string> = {
-      textEditing: "Edit Teks & Pesan",
-    };
 
     // Individual save functions are available for each section
 
     return (
       <div className="space-y-4">
-        {/* Header */}
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <SettingsIcon className="h-5 w-5 text-indigo-600" />
-              <div>
-                <h1 className="text-lg font-semibold text-gray-900">
-                  Pengaturan Aplikasi
-                </h1>
-                <p className="text-xs text-gray-600">
-                  Konfigurasi aplikasi (
-                  {appRules ? Object.keys(appRules).length : 0} pengaturan)
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-
         {/* Message */}
         {message && (
           <div
@@ -1926,34 +1919,121 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
           </div>
         )}
 
-        {/* Info Config Section */}
-        {infoConfig && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="p-4 flex items-center justify-between">
-              <button
-                onClick={() => toggleSection("info_config")}
-                className="flex items-center space-x-3 hover:bg-gray-50 p-2 rounded-md flex-1"
-              >
-                <Info className="h-5 w-5 text-indigo-500" />
-                <div className="text-left">
-                  <h2 className="text-base font-semibold text-gray-900">
-                    Konfigurasi Pesan
-                  </h2>
-                  <p className="text-xs text-gray-600">
-                    Pengaturan pesan dan notifikasi aplikasi
-                  </p>
-                </div>
-              </button>
-              <div className="flex items-center space-x-2">
-                {expandedSections.has("info_config") ? (
-                  <ChevronUp className="h-5 w-5 text-gray-400" />
-                ) : (
-                  <ChevronDown className="h-5 w-5 text-gray-400" />
-                )}
-              </div>
-            </div>
+        {/* Tab Navigation */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="border-b border-gray-200 overflow-hidden">
+            <nav 
+              className="flex overflow-x-auto" 
+              style={{ 
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none'
+              }}
+              aria-label="Tabs"
+            >
+              {infoConfig && (
+                <button
+                  onClick={() => setActiveTab("info_config")}
+                  className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                    activeTab === "info_config"
+                      ? "border-indigo-500 text-indigo-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  Konfigurasi Pesan
+                </button>
+              )}
+              {tiketRegexConfig && (
+                <button
+                  onClick={() => setActiveTab("tiket_regex")}
+                  className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                    activeTab === "tiket_regex"
+                      ? "border-indigo-500 text-indigo-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  Regex Tiket Deposit
+                </button>
+              )}
+              {checkProductsConfig && (
+                <button
+                  onClick={() => setActiveTab("check_products")}
+                  className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                    activeTab === "check_products"
+                      ? "border-indigo-500 text-indigo-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  Cek Produk
+                </button>
+              )}
+              {combotrxConfig && (
+                <button
+                  onClick={() => setActiveTab("combotrx_config")}
+                  className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                    activeTab === "combotrx_config"
+                      ? "border-indigo-500 text-indigo-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  Regex Paket Combo
+                </button>
+              )}
+              {cektagihanConfig && (
+                <button
+                  onClick={() => setActiveTab("cektagihan_config")}
+                  className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                    activeTab === "cektagihan_config"
+                      ? "border-indigo-500 text-indigo-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  Regex Cek Produk
+                </button>
+              )}
+              {receiptMapsConfig && (
+                <button
+                  onClick={() => setActiveTab("receipt_maps_config")}
+                  className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                    activeTab === "receipt_maps_config"
+                      ? "border-indigo-500 text-indigo-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  Struk
+                </button>
+              )}
+              {bantuanConfig && (
+                <button
+                  onClick={() => setActiveTab("bantuan_config")}
+                  className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                    activeTab === "bantuan_config"
+                      ? "border-indigo-500 text-indigo-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  Bantuan
+                </button>
+              )}
+              {appRules && (
+                <button
+                  onClick={() => setActiveTab("textEditing")}
+                  className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                    activeTab === "textEditing"
+                      ? "border-indigo-500 text-indigo-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  Edit Teks & Pesan
+                </button>
+              )}
+            </nav>
+          </div>
 
-            {expandedSections.has("info_config") && (
+          {/* Tab Content */}
+          <div className="p-4">
+            {/* Info Config Section */}
+            {infoConfig && activeTab === "info_config" && (
               <div className="px-4 pb-4">
                 <div className="space-y-3">
                   {Object.entries(infoConfig).map(
@@ -1990,38 +2070,24 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                 </div>
               </div>
             )}
-          </div>
-        )}
 
-        {/* Tiket Regex Config Section */}
-        {tiketRegexConfig && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="p-4 flex items-center justify-between">
-              <button
-                onClick={() => toggleSection("tiket_regex")}
-                className="flex items-center space-x-3 hover:bg-gray-50 p-2 rounded-md flex-1"
-              >
-                <Info className="h-5 w-5 text-indigo-500" />
-                <div className="text-left">
-                  <h2 className="text-base font-semibold text-gray-900">
-                    Pengaturan Regex Tiket Deposit
-                  </h2>
-                  <p className="text-xs text-gray-600">
-                    Konfigurasi regex pattern untuk parsing tiket deposit
-                  </p>
+            {/* Tiket Regex Config Section */}
+            {tiketRegexConfig && activeTab === "tiket_regex" && (
+              <div className="px-4 pb-4">
+                <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h3 className="text-xs font-medium text-blue-900 mb-1">
+                    Keterangan Regex Pattern:
+                  </h3>
+                  <ul className="text-xs text-blue-800 space-y-0.5">
+                    <li>
+                      <strong>bank_close_bankname</strong> - Jika bank tutup,
+                      gunakan regex group name dengan pola{" "}
+                      <strong>bank_close_bankname</strong> (contoh:{" "}
+                      <strong>bank_close_mandiri</strong>,{" "}
+                      <strong>bank_close_bri</strong>)
+                    </li>
+                  </ul>
                 </div>
-              </button>
-              <div className="flex items-center space-x-2">
-                {expandedSections.has("tiket_regex") ? (
-                  <ChevronUp className="h-5 w-5 text-gray-400" />
-                ) : (
-                  <ChevronDown className="h-5 w-5 text-gray-400" />
-                )}
-              </div>
-            </div>
-
-            {expandedSections.has("tiket_regex") && (
-              <div className="px-6 pb-6">
                 <div className="space-y-4">
                   {Object.entries(tiketRegexConfig).map(
                     ([sectionKey, sectionValue]) => {
@@ -2057,37 +2123,9 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                 </div>
               </div>
             )}
-          </div>
-        )}
 
-        {/* Check Products Config Section */}
-        {checkProductsConfig && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="p-4 flex items-center justify-between">
-              <button
-                onClick={() => toggleSection("check_products")}
-                className="flex items-center space-x-3 hover:bg-gray-50 p-2 rounded-md flex-1"
-              >
-                <Info className="h-5 w-5 text-indigo-500" />
-                <div className="text-left">
-                  <h2 className="text-base font-semibold text-gray-900">
-                    Pengaturan Cek Produk
-                  </h2>
-                  <p className="text-xs text-gray-600">
-                    Konfigurasi mapping produk untuk cek tagihan dan query paket
-                  </p>
-                </div>
-              </button>
-              <div className="flex items-center space-x-2">
-                {expandedSections.has("check_products") ? (
-                  <ChevronUp className="h-5 w-5 text-gray-400" />
-                ) : (
-                  <ChevronDown className="h-5 w-5 text-gray-400" />
-                )}
-              </div>
-            </div>
-
-            {expandedSections.has("check_products") && (
+            {/* Check Products Config Section */}
+            {checkProductsConfig && activeTab === "check_products" && (
               <div className="px-4 pb-4">
                 <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <h3 className="text-xs font-medium text-blue-900 mb-1">
@@ -2132,37 +2170,9 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                 </div>
               </div>
             )}
-          </div>
-        )}
 
-        {/* Combotrx Config Section */}
-        {combotrxConfig && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="p-4 flex items-center justify-between">
-              <button
-                onClick={() => toggleSection("combotrx_config")}
-                className="flex items-center space-x-3 hover:bg-gray-50 p-2 rounded-md flex-1"
-              >
-                <Info className="h-5 w-5 text-indigo-500" />
-                <div className="text-left">
-                  <h2 className="text-base font-semibold text-gray-900">
-                    Pengaturan Regex Paket Combo
-                  </h2>
-                  <p className="text-xs text-gray-600">
-                    Konfigurasi regex pattern untuk parsing paket combo
-                  </p>
-                </div>
-              </button>
-              <div className="flex items-center space-x-2">
-                {expandedSections.has("combotrx_config") ? (
-                  <ChevronUp className="h-5 w-5 text-gray-400" />
-                ) : (
-                  <ChevronDown className="h-5 w-5 text-gray-400" />
-                )}
-              </div>
-            </div>
-
-            {expandedSections.has("combotrx_config") && (
+            {/* Combotrx Config Section */}
+            {combotrxConfig && activeTab === "combotrx_config" && (
               <div className="px-4 pb-4">
                 <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <h3 className="text-xs font-medium text-blue-900 mb-1">
@@ -2259,37 +2269,9 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                 </div>
               </div>
             )}
-          </div>
-        )}
 
-        {/* Cektagihan Config Section */}
-        {cektagihanConfig && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="p-4 flex items-center justify-between">
-              <button
-                onClick={() => toggleSection("cektagihan_config")}
-                className="flex items-center space-x-3 hover:bg-gray-50 p-2 rounded-md flex-1"
-              >
-                <Info className="h-5 w-5 text-indigo-500" />
-                <div className="text-left">
-                  <h2 className="text-base font-semibold text-gray-900">
-                    Pengaturan Regex Cek Produk
-                  </h2>
-                  <p className="text-xs text-gray-600">
-                    Konfigurasi regex pattern untuk parsing tagihan produk
-                  </p>
-                </div>
-              </button>
-              <div className="flex items-center space-x-2">
-                {expandedSections.has("cektagihan_config") ? (
-                  <ChevronUp className="h-5 w-5 text-gray-400" />
-                ) : (
-                  <ChevronDown className="h-5 w-5 text-gray-400" />
-                )}
-              </div>
-            </div>
-
-            {expandedSections.has("cektagihan_config") && (
+            {/* Cektagihan Config Section */}
+            {cektagihanConfig && activeTab === "cektagihan_config" && (
               <div className="px-4 pb-4">
                 <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <h3 className="text-xs font-medium text-blue-900 mb-1">
@@ -2381,37 +2363,9 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                 </div>
               </div>
             )}
-          </div>
-        )}
 
-        {/* Receipt Maps Config Section */}
-        {receiptMapsConfig && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="p-4 flex items-center justify-between">
-              <button
-                onClick={() => toggleSection("receipt_maps_config")}
-                className="flex items-center space-x-3 hover:bg-gray-50 p-2 rounded-md flex-1"
-              >
-                <Info className="h-5 w-5 text-indigo-500" />
-                <div className="text-left">
-                  <h2 className="text-base font-semibold text-gray-900">
-                    Pengaturan Struk
-                  </h2>
-                  <p className="text-xs text-gray-600">
-                    Konfigurasi template struk untuk berbagai jenis produk
-                  </p>
-                </div>
-              </button>
-              <div className="flex items-center space-x-2">
-                {expandedSections.has("receipt_maps_config") ? (
-                  <ChevronUp className="h-5 w-5 text-gray-400" />
-                ) : (
-                  <ChevronDown className="h-5 w-5 text-gray-400" />
-                )}
-              </div>
-            </div>
-
-            {expandedSections.has("receipt_maps_config") && (
+            {/* Receipt Maps Config Section */}
+            {receiptMapsConfig && activeTab === "receipt_maps_config" && (
               <div className="px-4 pb-4">
                 <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <h3 className="text-xs font-medium text-blue-900 mb-1">
@@ -2669,37 +2623,9 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                 </div>
               </div>
             )}
-          </div>
-        )}
 
-        {/* Bantuan Config Section */}
-        {bantuanConfig && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="p-4 flex items-center justify-between">
-              <button
-                onClick={() => toggleSection("bantuan_config")}
-                className="flex items-center space-x-3 hover:bg-gray-50 p-2 rounded-md flex-1"
-              >
-                <Info className="h-5 w-5 text-indigo-500" />
-                <div className="text-left">
-                  <h2 className="text-base font-semibold text-gray-900">
-                    Editor Bantuan Screen
-                  </h2>
-                  <p className="text-xs text-gray-600">
-                    Konfigurasi layar bantuan dengan topik dan link
-                  </p>
-                </div>
-              </button>
-              <div className="flex items-center space-x-2">
-                {expandedSections.has("bantuan_config") ? (
-                  <ChevronUp className="h-5 w-5 text-gray-400" />
-                ) : (
-                  <ChevronDown className="h-5 w-5 text-gray-400" />
-                )}
-              </div>
-            </div>
-
-            {expandedSections.has("bantuan_config") && (
+            {/* Bantuan Config Section */}
+            {bantuanConfig && activeTab === "bantuan_config" && (
               <div className="px-4 pb-4">
                 <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <h3 className="text-xs font-medium text-blue-900 mb-1">
@@ -2924,54 +2850,22 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                 </div>
               </div>
             )}
-          </div>
-        )}
 
-        {/* App Info Config Section removed */}
+            {/* Dynamic Sections (Text Editing) */}
+            {Object.entries(groupedFields)
+              .sort(([a], [b]) => {
+                return a.localeCompare(b);
+              })
+              .map(([section, fields]) => {
+                const filteredFields = fields.filter(
+                  ([key, value]) => shouldShowField(key, value),
+                );
 
-        {/* Dynamic Sections */}
-        {Object.entries(groupedFields)
-          .sort(([a], [b]) => {
-            return a.localeCompare(b);
-          })
-          .map(([section, fields]) => {
-            const filteredFields = fields.filter(
-              ([key, value]) => shouldShowField(key, value),
-            );
+                if (filteredFields.length === 0) return null;
 
-            if (filteredFields.length === 0) return null;
+                if (activeTab !== section) return null;
 
-            const isExpanded = expandedSections.has(section);
-            const sectionLabel = sectionLabels[section] || section;
-
-            return (
-              <div
-                key={section}
-                className="bg-white rounded-lg shadow-sm border border-gray-200"
-              >
-                <button
-                  onClick={() => toggleSection(section)}
-                  className="w-full p-4 text-left flex items-center justify-between hover:bg-gray-50"
-                >
-                  <div className="flex items-center space-x-3">
-                    <Info className="h-4 w-4 text-indigo-500" />
-                    <div>
-                      <h2 className="text-base font-semibold text-gray-900">
-                        {sectionLabel}
-                      </h2>
-                      <p className="text-xs text-gray-600">
-                        {filteredFields.length} pengaturan
-                      </p>
-                    </div>
-                  </div>
-                  {isExpanded ? (
-                    <ChevronUp className="h-5 w-5 text-gray-400" />
-                  ) : (
-                    <ChevronDown className="h-5 w-5 text-gray-400" />
-                  )}
-                </button>
-
-                {isExpanded && (
+                return (
                   <div className="px-4 pb-4">
                     {/* Search and Filter - only for textEditing section */}
                     {section === "textEditing" && (
@@ -2999,28 +2893,10 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                       )}
                     </div>
                   </div>
-                )}
-              </div>
-            );
-          })}
-
-        {/* No results */}
-        {Object.values(groupedFields).every(
-          (fields) =>
-            fields.filter(
-              ([key, value]) => shouldShowField(key, value),
-            ).length === 0,
-        ) && (
-          <div className="text-center py-12">
-            <Search className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              Tidak Ada Hasil
-            </h3>
-            <p className="text-gray-600">
-              Coba ubah kata kunci pencarian atau filter
-            </p>
+                );
+              })}
           </div>
-        )}
+        </div>
       </div>
     );
   },

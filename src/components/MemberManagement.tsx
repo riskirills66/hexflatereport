@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   Search, 
@@ -104,9 +104,16 @@ interface CurrentAdminInfo {
 
 interface MemberManagementProps {
   authSeed: string;
+  onStatsChange?: (totalMembers: number, loadedMembers: number) => void;
 }
 
-const MemberManagement: React.FC<MemberManagementProps> = ({ authSeed }) => {
+export interface MemberManagementRef {
+  totalMembers: number;
+  loadedMembers: number;
+  refresh: () => void;
+}
+
+const MemberManagement = forwardRef<MemberManagementRef, MemberManagementProps>(({ authSeed, onStatsChange }, ref) => {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -133,6 +140,20 @@ const MemberManagement: React.FC<MemberManagementProps> = ({ authSeed }) => {
   const [addingToAdmin, setAddingToAdmin] = useState<string | null>(null);
 
   const limit = 10;
+
+  // Expose stats and refresh function to parent
+  useImperativeHandle(ref, () => ({
+    totalMembers,
+    loadedMembers: members.length,
+    refresh: () => fetchMembers(false)
+  }));
+
+  // Notify parent when stats change
+  useEffect(() => {
+    if (onStatsChange) {
+      onStatsChange(totalMembers, members.length);
+    }
+  }, [totalMembers, members.length, onStatsChange]);
 
   // Handle escape key to close image overlay
   useEffect(() => {
@@ -565,23 +586,6 @@ const MemberManagement: React.FC<MemberManagementProps> = ({ authSeed }) => {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-medium text-gray-900">Manajemen Member</h3>
-          <p className="text-sm text-gray-600">
-            Kelola {totalMembers} member • {members.length} dimuat
-          </p>
-        </div>
-        <button
-          onClick={() => fetchMembers(false)}
-          className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
-        >
-          <RefreshCw className="h-4 w-4" />
-          <span>Refresh</span>
-        </button>
-      </div>
-
       {/* Message */}
       {message && (
         <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -1248,6 +1252,8 @@ const MemberManagement: React.FC<MemberManagementProps> = ({ authSeed }) => {
       )}
     </div>
   );
-};
+});
+
+MemberManagement.displayName = 'MemberManagement';
 
 export default MemberManagement;
