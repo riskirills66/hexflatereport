@@ -1,11 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Save, 
-  RefreshCw, 
   Eye, 
   Edit3, 
   FileText, 
-  Download,
   Bold,
   Italic,
   List,
@@ -19,15 +16,23 @@ import {
   Search,
   Copy,
   ExternalLink,
-  FilePlus,
-  Image,
-  ArrowLeft
+  Image
 } from 'lucide-react';
 import { getApiUrl, X_TOKEN_VALUE } from '../config/api';
 
 interface MarkdownEditorProps {
   authSeed: string;
   onNavigate: (screen: string) => void;
+}
+
+export interface MarkdownEditorRef {
+  refresh: () => void;
+  showNewFileDialog: () => void;
+  saveCurrentFile: () => void;
+  downloadMarkdown: () => void;
+  backToFiles: () => void;
+  currentFile: MarkdownFile | null;
+  saving: boolean;
 }
 
 interface MarkdownFile {
@@ -39,7 +44,7 @@ interface MarkdownFile {
   size: number;
 }
 
-const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ authSeed }) => {
+const MarkdownEditor = React.forwardRef<MarkdownEditorRef, MarkdownEditorProps>(({ authSeed }, ref) => {
   const [files, setFiles] = useState<MarkdownFile[]>([]);
   const [currentFile, setCurrentFile] = useState<MarkdownFile | null>(null);
   const [content, setContent] = useState<string>('');
@@ -59,6 +64,16 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ authSeed }) => {
   const [imageAlt, setImageAlt] = useState('');
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  React.useImperativeHandle(ref, () => ({
+    refresh: loadMarkdownFiles,
+    showNewFileDialog: () => setShowNewFileDialog(true),
+    saveCurrentFile,
+    downloadMarkdown,
+    backToFiles: handleBackToFiles,
+    currentFile,
+    saving,
+  }));
 
   useEffect(() => {
     loadMarkdownFiles();
@@ -459,50 +474,6 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ authSeed }) => {
     <div className="h-full bg-gray-50 flex flex-col overflow-hidden">
       {currentFile ? (
         <>
-          {/* Header - Editor View */}
-          <div className="bg-white shadow-sm border-b border-gray-200 flex-shrink-0">
-            <div className="px-6 py-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <button
-                    onClick={handleBackToFiles}
-                    className="p-2 text-gray-600 hover:bg-gray-100 rounded-md"
-                    title="Back to files"
-                  >
-                    <ArrowLeft className="h-5 w-5" />
-                  </button>
-                  <div className="flex items-center space-x-2">
-                    <FileText className="h-6 w-6 text-indigo-600" />
-                    <h1 className="text-xl font-semibold text-gray-900">{currentFile.title}</h1>
-                  </div>
-                </div>
-                
-                <div className="flex items-center space-x-3">
-                  <button
-                    onClick={downloadMarkdown}
-                    className="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 flex items-center space-x-2"
-                  >
-                    <Download className="h-4 w-4" />
-                    <span>Download</span>
-                  </button>
-                  
-                  <button
-                    onClick={saveCurrentFile}
-                    disabled={saving}
-                    className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center space-x-2"
-                  >
-                    {saving ? (
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    ) : (
-                      <Save className="h-4 w-4" />
-                    )}
-                    <span>{saving ? 'Saving...' : 'Save'}</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* Message */}
           {message && (
             <div className={`mx-6 mt-4 p-4 rounded-md ${
@@ -724,36 +695,6 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ authSeed }) => {
         </>
       ) : (
         <>
-          {/* Header - File List View */}
-          <div className="bg-white shadow-sm border-b border-gray-200 flex-shrink-0">
-            <div className="px-6 py-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <FileText className="h-6 w-6 text-indigo-600" />
-                  <h1 className="text-xl font-semibold text-gray-900">Kelola Konten</h1>
-                </div>
-                
-                <div className="flex items-center space-x-3">
-                  <button
-                    onClick={loadMarkdownFiles}
-                    className="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 flex items-center space-x-2"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                    <span>Refresh</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => setShowNewFileDialog(true)}
-                    className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 flex items-center space-x-2"
-                  >
-                    <FilePlus className="h-4 w-4" />
-                    <span>New File</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* Message */}
           {message && (
             <div className={`mx-6 mt-4 p-4 rounded-md ${
@@ -955,6 +896,8 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({ authSeed }) => {
       )}
     </div>
   );
-};
+});
+
+MarkdownEditor.displayName = 'MarkdownEditor';
 
 export default MarkdownEditor;

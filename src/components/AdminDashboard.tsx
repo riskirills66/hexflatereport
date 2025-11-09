@@ -27,6 +27,9 @@ import {
   Eye,
   EyeOff,
   Filter,
+  Save,
+  ArrowLeft,
+  FilePlus,
 } from "lucide-react";
 import { DynamicScreenConfig } from "../types";
 import { SAMPLE_CONFIG } from "../data/sampleConfig";
@@ -44,7 +47,7 @@ import HadiahManagement, { HadiahManagementRef } from "./HadiahManagement";
 import PromoManagement, { PromoManagementRef } from "./PromoManagement";
 import BroadcastCenter, { BroadcastCenterRef } from "./BroadcastCenter";
 import AssetsManager from "./AssetsManager";
-import MarkdownEditor from "./MarkdownEditor";
+import MarkdownEditor, { MarkdownEditorRef } from "./MarkdownEditor";
 import ReleasePrep from "./ReleasePrep";
 import ChatManagement, { ChatManagementRef } from "./ChatManagement";
 import SessionManager, { SessionManagerRef } from "./SessionManager";
@@ -182,6 +185,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const systemLogsRef = useRef<SystemLogsRef>(null);
   const [systemLogsStats, setSystemLogsStats] = useState<{ total: number } | null>(null);
 
+  // Markdown editor ref
+  const markdownEditorRef = useRef<MarkdownEditorRef>(null);
+  const [markdownCurrentFile, setMarkdownCurrentFile] = useState<{ filename: string } | null>(null);
+
   // Chat license status
   const [chatLicenseStatus, setChatLicenseStatus] = useState<{
     is_licensed: boolean;
@@ -307,6 +314,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   useEffect(() => {
     if (activeSection !== "logs") {
       setSystemLogsStats(null);
+    }
+  }, [activeSection]);
+
+  // Track markdown editor current file
+  useEffect(() => {
+    if (activeSection === "markdown-editor" && markdownEditorRef.current) {
+      const interval = setInterval(() => {
+        const currentFile = markdownEditorRef.current?.currentFile;
+        setMarkdownCurrentFile(currentFile ? { filename: currentFile.filename } : null);
+      }, 100);
+      return () => clearInterval(interval);
+    } else {
+      setMarkdownCurrentFile(null);
     }
   }, [activeSection]);
 
@@ -954,7 +974,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       icon: <FileText className="h-5 w-5" />,
       description: "Edit dan kelola file markdown",
       component: (
-        <MarkdownEditor authSeed={authSeed} onNavigate={setActiveSection} />
+        <MarkdownEditor 
+          authSeed={authSeed} 
+          onNavigate={setActiveSection}
+          ref={markdownEditorRef}
+        />
       ),
     },
     {
@@ -1156,6 +1180,52 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <RefreshCw className="h-4 w-4 mr-1" />
                       <span>Refresh</span>
                     </button>
+                  </div>
+                )}
+                {activeSection === "markdown-editor" && markdownEditorRef.current && (
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    {markdownCurrentFile ? (
+                      <>
+                        <button
+                          onClick={() => markdownEditorRef.current?.backToFiles()}
+                          className="inline-flex items-center justify-center w-8 h-8 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+                          title="Back to files"
+                        >
+                          <ArrowLeft className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => markdownEditorRef.current?.saveCurrentFile()}
+                          disabled={markdownEditorRef.current?.saving}
+                          className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-md transition-colors"
+                        >
+                          {markdownEditorRef.current?.saving ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          ) : (
+                            <>
+                              <Save className="h-4 w-4 mr-1" />
+                              <span>Save</span>
+                            </>
+                          )}
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => markdownEditorRef.current?.refresh()}
+                          className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+                        >
+                          <RefreshCw className="h-4 w-4 mr-1" />
+                          <span>Refresh</span>
+                        </button>
+                        <button
+                          onClick={() => markdownEditorRef.current?.showNewFileDialog()}
+                          className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors"
+                        >
+                          <FilePlus className="h-4 w-4 mr-1" />
+                          <span>New</span>
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
                 {activeSection === "logs" && systemLogsRef.current && (
@@ -1756,6 +1826,59 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <RefreshCw className="h-4 w-4" />
                     <span>Refresh</span>
                   </button>
+                </div>
+              )}
+
+              {/* Markdown Editor Buttons - Only show for markdown-editor section */}
+              {activeSection === "markdown-editor" && markdownEditorRef.current && (
+                <div className="flex items-center gap-2">
+                  {markdownCurrentFile ? (
+                    <>
+                      <button
+                        onClick={() => markdownEditorRef.current?.backToFiles()}
+                        className="flex items-center space-x-2 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+                      >
+                        <ArrowLeft className="h-4 w-4" />
+                        <span>Back</span>
+                      </button>
+                      <button
+                        onClick={() => markdownEditorRef.current?.downloadMarkdown()}
+                        className="flex items-center space-x-2 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+                      >
+                        <Download className="h-4 w-4" />
+                        <span>Download</span>
+                      </button>
+                      <button
+                        onClick={() => markdownEditorRef.current?.saveCurrentFile()}
+                        disabled={markdownEditorRef.current?.saving}
+                        className="flex items-center space-x-2 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-md transition-colors"
+                      >
+                        {markdownEditorRef.current?.saving ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        ) : (
+                          <Save className="h-4 w-4" />
+                        )}
+                        <span>{markdownEditorRef.current?.saving ? 'Saving...' : 'Save'}</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => markdownEditorRef.current?.refresh()}
+                        className="flex items-center space-x-2 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                        <span>Refresh</span>
+                      </button>
+                      <button
+                        onClick={() => markdownEditorRef.current?.showNewFileDialog()}
+                        className="flex items-center space-x-2 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors"
+                      >
+                        <FilePlus className="h-4 w-4" />
+                        <span>New File</span>
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
               </div>

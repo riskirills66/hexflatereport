@@ -277,7 +277,7 @@ const BroadcastCenter = forwardRef<BroadcastCenterRef, BroadcastCenterProps>(({ 
           </div>
 
           {/* Kode Level Reseller Selection */}
-          <div className="flex-1 flex flex-col">
+          <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">
               Target Kode Level Reseller (Opsional)
             </label>
@@ -288,26 +288,26 @@ const BroadcastCenter = forwardRef<BroadcastCenterRef, BroadcastCenterProps>(({ 
             {isLoading ? (
               <div className="text-xs text-gray-500">Memuat kode level...</div>
             ) : (
-              <div className="flex-1 grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-1 overflow-hidden">
+              <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2">
                 {availableClasses.map((className) => (
                   <label
                     key={className}
-                    className="flex items-center space-x-1 p-1 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer"
+                    className="flex items-center space-x-1.5 px-2 py-1.5 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer text-xs"
                   >
                     <input
                       type="checkbox"
                       checked={selectedClasses.includes(className)}
                       onChange={() => handleClassToggle(className)}
-                      className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 w-3 h-3"
+                      className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 w-3 h-3 flex-shrink-0"
                     />
-                    <span className="text-xs text-gray-700 truncate">{className}</span>
+                    <span className="text-gray-700 truncate">{className}</span>
                   </label>
                 ))}
               </div>
             )}
             
             {selectedClasses.length > 0 && (
-              <div className="mt-1">
+              <div className="mt-2">
                 <p className="text-xs text-gray-600">
                   Terpilih: {selectedClasses.join(', ')}
                 </p>
@@ -315,7 +315,7 @@ const BroadcastCenter = forwardRef<BroadcastCenterRef, BroadcastCenterProps>(({ 
             )}
             
             {availableClasses.length === 0 && !isLoading && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded p-2">
+              <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mt-2">
                 <p className="text-xs text-yellow-700">
                   Tidak ada kode level reseller ditemukan. Broadcast akan dikirim ke semua reseller.
                 </p>

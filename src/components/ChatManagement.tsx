@@ -1655,27 +1655,27 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
       <div
         className={`${
           isMobile
-            ? `fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-300 ease-in-out ${
+            ? `fixed inset-y-0 left-0 z-50 w-80 transform transition-transform duration-300 ease-in-out ${
                 showConversationList ? "translate-x-0" : "-translate-x-full"
               }`
-            : "w-80"
-        } border-r border-gray-200 flex flex-col bg-white`}
+            : "w-96"
+        } border-r border-gray-200 flex flex-col bg-gradient-to-b from-gray-50 to-white`}
       >
         {/* Header */}
-        <div className="p-4 border-b border-gray-200">
-          <div className="flex items-center justify-between mb-4">
+        <div className="p-6 border-b border-gray-200 bg-white">
+          <div className="flex items-center justify-between mb-5">
             <div className="flex items-center">
               {isMobile && (
                 <button
                   onClick={() => setShowConversationList(false)}
-                  className="mr-3 p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                  className="mr-3 p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
                 >
                   <ArrowLeft className="h-5 w-5" />
                 </button>
               )}
               <div className="flex items-center">
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                  <MessageSquare className="h-5 w-5 mr-2" />
+                <h2 className="text-xl font-bold text-gray-900 flex items-center">
+                  <MessageSquare className="h-6 w-6 mr-3 text-indigo-600" />
                   Customer Support Chat
                 </h2>
               </div>
@@ -1683,22 +1683,22 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
           </div>
 
           {/* Search and Filter */}
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search conversations..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm shadow-sm transition-all"
               />
             </div>
 
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm shadow-sm transition-all"
             >
               <option value="all">All Status</option>
               <option value="unresolved">Unresolved</option>
@@ -1708,11 +1708,11 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
         </div>
 
         {/* Conversations */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto px-3 py-2">
           {filteredConversations.length === 0 ? (
-            <div className="p-4 text-center text-gray-500">
-              <MessageCircle className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-              <p>No conversations found</p>
+            <div className="p-8 text-center text-gray-500">
+              <MessageCircle className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+              <p className="text-sm font-medium">No conversations found</p>
             </div>
           ) : (
             filteredConversations.map((conversation) => (
@@ -1731,56 +1731,71 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
                     setShowConversationList(false);
                   }
                 }}
-                className={`p-2 border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${
+                className={`mb-2 p-4 rounded-xl cursor-pointer transition-all duration-200 ${
                   selectedConversation?.id === conversation.id
-                    ? "bg-indigo-50 border-indigo-200"
-                    : ""
+                    ? "bg-indigo-50 border-2 border-indigo-300 shadow-md"
+                    : "bg-white border-2 border-transparent hover:border-gray-200 hover:shadow-md"
                 }`}
               >
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center mb-0.5">
-                      <User className="h-3 w-3 text-gray-400 mr-1.5 flex-shrink-0" />
-                      <p className="text-xs font-medium text-gray-900 truncate">
-                        {conversation.user_id} | {conversation.user_name}
-                      </p>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className={`p-2 rounded-lg ${
+                        selectedConversation?.id === conversation.id
+                          ? "bg-indigo-100"
+                          : "bg-gray-100"
+                      }`}>
+                        <User className={`h-4 w-4 ${
+                          selectedConversation?.id === conversation.id
+                            ? "text-indigo-600"
+                            : "text-gray-500"
+                        }`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">
+                          {conversation.user_name}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {conversation.user_id}
+                        </p>
+                      </div>
                       {conversation.unread_count_admin > 0 && (
-                        <span className="ml-1.5 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">
+                        <span className="flex-shrink-0 bg-red-500 text-white text-xs font-bold rounded-full min-w-[24px] h-6 px-2 flex items-center justify-center shadow-sm">
                           {conversation.unread_count_admin}
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center justify-between mt-0.5">
+                    <div className="flex items-center justify-between gap-2 mt-2">
                       {conversation.last_message && (
-                        <p className="text-xs text-gray-600 truncate flex-1 mr-2">
+                        <p className="text-sm text-gray-600 truncate flex-1">
                           {conversation.last_message}
                         </p>
                       )}
+                    </div>
+                    <div className="flex items-center justify-between gap-2 mt-3">
                       <span
-                        className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium flex-shrink-0 ${getResolvedColor(conversation.resolved)}`}
+                        className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold flex-shrink-0 ${getResolvedColor(conversation.resolved)}`}
                       >
                         {conversation.resolved === 1 ? (
                           <>
-                            <svg className="h-2.5 w-2.5 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                             </svg>
                             Resolved
                           </>
                         ) : (
                           <>
-                            <svg className="h-2.5 w-2.5 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
                             Unresolved
                           </>
                         )}
                       </span>
+                      <p className="text-xs font-medium text-gray-500">
+                        {formatTime(conversation.updated_at)}
+                      </p>
                     </div>
-                  </div>
-                  <div className="flex flex-col items-end ml-1">
-                    <p className="text-xs text-gray-500">
-                      {formatTime(conversation.updated_at)}
-                    </p>
                   </div>
                 </div>
               </div>
