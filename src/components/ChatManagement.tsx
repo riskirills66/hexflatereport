@@ -1731,21 +1731,21 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
                     setShowConversationList(false);
                   }
                 }}
-                className={`mb-2 p-4 rounded-xl cursor-pointer transition-all duration-200 ${
+                className={`mb-1.5 p-3 rounded-lg cursor-pointer transition-all duration-200 ${
                   selectedConversation?.id === conversation.id
-                    ? "bg-indigo-50 border-2 border-indigo-300 shadow-md"
-                    : "bg-white border-2 border-transparent hover:border-gray-200 hover:shadow-md"
+                    ? "bg-indigo-50 border-2 border-indigo-300 shadow-sm"
+                    : "bg-white border-2 border-transparent hover:border-gray-200 hover:shadow-sm"
                 }`}
               >
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className={`p-2 rounded-lg ${
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className={`p-1.5 rounded-md ${
                         selectedConversation?.id === conversation.id
                           ? "bg-indigo-100"
                           : "bg-gray-100"
                       }`}>
-                        <User className={`h-4 w-4 ${
+                        <User className={`h-3.5 w-3.5 ${
                           selectedConversation?.id === conversation.id
                             ? "text-indigo-600"
                             : "text-gray-500"
@@ -1760,32 +1760,32 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(({ aut
                         </p>
                       </div>
                       {conversation.unread_count_admin > 0 && (
-                        <span className="flex-shrink-0 bg-red-500 text-white text-xs font-bold rounded-full min-w-[24px] h-6 px-2 flex items-center justify-center shadow-sm">
+                        <span className="flex-shrink-0 bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center shadow-sm">
                           {conversation.unread_count_admin}
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center justify-between gap-2 mt-2">
+                    <div className="flex items-center justify-between gap-2 mt-1">
                       {conversation.last_message && (
-                        <p className="text-sm text-gray-600 truncate flex-1">
+                        <p className="text-xs text-gray-600 truncate flex-1">
                           {conversation.last_message}
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center justify-between gap-2 mt-3">
+                    <div className="flex items-center justify-between gap-2 mt-1.5">
                       <span
-                        className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold flex-shrink-0 ${getResolvedColor(conversation.resolved)}`}
+                        className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold flex-shrink-0 ${getResolvedColor(conversation.resolved)}`}
                       >
                         {conversation.resolved === 1 ? (
                           <>
-                            <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="h-2.5 w-2.5 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                             </svg>
                             Resolved
                           </>
                         ) : (
                           <>
-                            <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="h-2.5 w-2.5 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
                             Unresolved
