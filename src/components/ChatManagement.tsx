@@ -208,6 +208,45 @@ const MediaContent: React.FC<{
   }
 };
 
+const renderMarkdown = (content: string) => {
+  if (!content.trim()) {
+    return { __html: '' };
+  }
+
+  let html = content
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/^### (.*$)/gim, '<h3 class="text-base font-semibold mt-3 mb-1">$1</h3>')
+    .replace(/^## (.*$)/gim, '<h2 class="text-lg font-semibold mt-4 mb-2">$1</h2>')
+    .replace(/^# (.*$)/gim, '<h1 class="text-xl font-bold mt-5 mb-3">$1</h1>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
+    .replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1 py-0.5 rounded text-xs font-mono">$1</code>')
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="max-w-full h-auto rounded-lg shadow-sm my-2" loading="lazy" />')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-blue-600 hover:text-blue-800 underline" target="_blank" rel="noopener noreferrer">$1</a>')
+    .replace(/^> (.*$)/gim, '<blockquote class="border-l-4 border-gray-300 pl-3 italic my-2 text-gray-700">$1</blockquote>')
+    .replace(/^- (.*$)/gim, '<li class="ml-4">$1</li>')
+    .replace(/^\d+\. (.*$)/gim, '<li class="ml-4">$1</li>')
+    .replace(/\n\n/g, '</p><p class="mb-2">')
+    .replace(/\n/g, '<br>');
+
+  html = '<p class="mb-2">' + html + '</p>';
+
+  html = html.replace(/(<li class="ml-4">.*?<\/li>)/g, (match) => {
+    return '<ul class="list-disc list-inside mb-2">' + match + '</ul>';
+  });
+
+  html = html
+    .replace(/<p class="mb-2"><\/p>/g, '')
+    .replace(/<p class="mb-2"><ul/g, '<ul')
+    .replace(/<\/ul><\/p>/g, '</ul>')
+    .replace(/<p class="mb-2"><h/g, '<h')
+    .replace(/<\/h[1-6]><\/p>/g, (match) => match.replace('</p>', ''));
+
+  return { __html: html };
+};
+
 const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
   ({ authSeed, onConversationChange, onConnectionStatusChange }, ref) => {
     const [conversations, setConversations] = useState<ChatConversation[]>([]);
@@ -252,7 +291,7 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
     const [webSocketUrl, setWebSocketUrl] = useState<string>("");
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const messageInputRef = useRef<HTMLInputElement>(null);
+    const messageInputRef = useRef<HTMLTextAreaElement>(null);
     const selectedConversationRef = useRef<ChatConversation | null>(null);
 
     const [showNotificationSettings, setShowNotificationSettings] =
@@ -857,7 +896,7 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
     };
 
     // Handle keyboard navigation for concept selection
-    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (showConcepts && concepts.length > 0) {
         switch (e.key) {
           case "ArrowDown":
@@ -919,7 +958,7 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
     };
 
     // Handle input change for concept detection
-    const handleMessageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       const value = e.target.value;
       setNewMessage(value);
 
@@ -1965,7 +2004,10 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
                                 </p>
                               </div>
                             ) : (
-                              <p className="text-sm">{message.message}</p>
+                              <div 
+                                className="text-sm prose prose-sm max-w-none"
+                                dangerouslySetInnerHTML={renderMarkdown(message.message)}
+                              />
                             )}
                           </div>
                         )}
@@ -1998,14 +2040,14 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
                     )}
                   </button>
                   <div className="flex-1 relative">
-                    <input
+                    <textarea
                       ref={messageInputRef}
-                      type="text"
                       value={newMessage}
                       onChange={handleMessageChange}
                       onKeyDown={handleKeyDown}
                       onKeyPress={(e) => {
-                        if (e.key === "Enter") {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
                           if (showConcepts && selectedConceptIndex >= 0) {
                             // Handle concept selection via Enter
                             return;
@@ -2020,7 +2062,7 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
                         dynamicPlaceholder ||
                         "Ketik chat di sini... (@ untuk catatan admin, ! untuk konsep pesan, +keyword untuk menambahkan konsep)"
                       }
-                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-300 ${
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-300 resize-none ${
                         inputGlow.show
                           ? inputGlow.type === "success"
                             ? "border-green-400 bg-green-50 shadow-lg shadow-green-200 ring-2 ring-green-300"
@@ -2028,6 +2070,13 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
                           : "border-gray-300"
                       }`}
                       disabled={uploadingFile}
+                      rows={1}
+                      style={{ minHeight: '40px', maxHeight: '120px' }}
+                      onInput={(e) => {
+                        const target = e.target as HTMLTextAreaElement;
+                        target.style.height = 'auto';
+                        target.style.height = `${Math.min(target.scrollHeight, 120)}px`;
+                      }}
                     />
 
                     {/* Concept Selection Dropdown */}
