@@ -12,8 +12,8 @@ Web report dan admin panel berbasis React.
 1. Clone Repository & Install dependencies:
 
 ```bash
-git clone https://github.com/riskirills66/hexflatereport &&
-cd hexflatereport &&
+git clone https://github.com/riskirills66/hexflatereport
+cd hexflatereport
 npm install
 ```
 
