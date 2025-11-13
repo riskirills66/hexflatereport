@@ -9,9 +9,11 @@ Web report dan admin panel berbasis React.
 
 ## Local Development
 
-1. Install dependencies:
+1. Clone Repository & Install dependencies:
 
 ```bash
+git clone https://github.com/riskirills66/hexflatereport &&
+cd hexflatereport &&
 npm install
 ```
 
@@ -47,7 +49,7 @@ npm run build
 
 ## Vercel Deployment
 
-1. Fork repository ini ke akun Github Anda
+1. Fork repository [ini](https://github.com/riskirills66/hexflatereport) ke akun Github Anda
 
 2. Import fork di [Vercel](https://vercel.com)
 
