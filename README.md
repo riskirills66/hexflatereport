@@ -33,6 +33,10 @@ VITE_WEB_TITLE=AGEN PULS
 VITE_WEB_FAVICON=https://vite.dev/logo.svg
 ```
 
+**Catatan:**
+- `VITE_API_ENDPOINTS`: Harus diarahkan ke backend, baik melalui Cloudflare Tunnel atau Static IP
+- `VITE_X_TOKEN_VALUE`: Harus diminta ke developer/owner
+
 4. Jalankan development server:
 
 ```bash
@@ -61,8 +65,8 @@ npm run build
 4. **Tambahkan Environment Variables** di Vercel:
    - Masuk ke Settings ? Environment Variables
    - Tambahkan semua variabel dari file `.env.example`:
-     - `VITE_API_ENDPOINTS`
-     - `VITE_X_TOKEN_VALUE`
+     - `VITE_API_ENDPOINTS` - Harus diarahkan ke backend, baik melalui Cloudflare Tunnel atau Static IP
+     - `VITE_X_TOKEN_VALUE` - Harus diminta ke developer/owner
      - `VITE_WS_BACKEND_HOST`
      - `VITE_WEB_TITLE`
      - `VITE_WEB_FAVICON`
