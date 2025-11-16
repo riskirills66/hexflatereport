@@ -110,6 +110,7 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
     } | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [filterInputValue, setFilterInputValue] = useState("");
+    const [matchedKeys, setMatchedKeys] = useState<Set<string>>(new Set());
     const [activeTab, setActiveTab] = useState<string>("info_config");
     const [expandedReceiptConfigs, setExpandedReceiptConfigs] = useState<
       Set<number>
@@ -1587,44 +1588,41 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
     };
 
 
+    const EXCLUDED_KEYS = [
+      "verificationFeature",
+      "exchangePoinToSaldo",
+      "permissionIntroFeatureEnabled",
+      "blockNonVerifiedMLM",
+      "exchangePoinToGift",
+      "blockNonVerifiedTransfer",
+      "biometrictTrxFeature",
+      "editProfileFeature",
+      "maximumVoucherActivation",
+      "minimumProductPriceToDisplay",
+      "cs_email",
+      "cs_whatsapp",
+      "cs_phone",
+      "maxWelcomePosterPerDay",
+      "newUserMarkup",
+      "newUserGroup",
+      "newUserUpline",
+      "blockNonVerifiedTransfer",
+      "blockNonVerifiedMLM",
+      "maxTransaction",
+      "maxTransactionsTotal",
+      "whatsappHelp",
+      "whatsappHelpFormat",
+      "liveChatHelpFormat",
+    ];
+
     const shouldShowField = (key: string, value: any): boolean => {
-      // Exclude specific keys
-      const excludedKeys = [
-        "verificationFeature",
-        "exchangePoinToSaldo",
-        "permissionIntroFeatureEnabled",
-        "blockNonVerifiedMLM",
-        "exchangePoinToGift",
-        "blockNonVerifiedTransfer",
-        "biometrictTrxFeature",
-        "editProfileFeature",
-        "maximumVoucherActivation",
-        "minimumProductPriceToDisplay",
-        "cs_email",
-        "cs_whatsapp",
-        "cs_phone",
-        "maxWelcomePosterPerDay",
-        "newUserMarkup",
-        "newUserGroup",
-        "newUserUpline",
-        "blockNonVerifiedTransfer",
-        "blockNonVerifiedMLM",
-        "maxTransaction",
-        "maxTransactionsTotal",
-        "whatsappHelp",
-        "whatsappHelpFormat",
-        "liveChatHelpFormat",
-      ];
-      
-      if (excludedKeys.includes(key)) return false;
+      if (EXCLUDED_KEYS.includes(key)) return false;
       
       if (!searchTerm) return true;
-      const searchLower = searchTerm.toLowerCase();
-      return (
-        key.toLowerCase().includes(searchLower) ||
-        getFieldLabel(key).toLowerCase().includes(searchLower) ||
-        String(value).toLowerCase().includes(searchLower)
-      );
+      
+      // If filter is active, check if this key was in the matched set
+      // This prevents fields from disappearing when their values are edited
+      return matchedKeys.has(key);
     };
 
 
@@ -2916,7 +2914,32 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                                 onChange={(e) => setFilterInputValue(e.target.value)}
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter") {
-                                    setSearchTerm(filterInputValue);
+                                    const filterValue = filterInputValue.trim();
+                                    if (!filterValue) {
+                                      setSearchTerm("");
+                                      setMatchedKeys(new Set());
+                                      return;
+                                    }
+                                    
+                                    // Calculate which keys match the filter
+                                    const searchLower = filterValue.toLowerCase();
+                                    const newMatchedKeys = new Set<string>();
+                                    
+                                    const textEditingFields = groupedFields.textEditing || [];
+                                    textEditingFields.forEach(([key, value]) => {
+                                      if (EXCLUDED_KEYS.includes(key)) return;
+                                      
+                                      if (
+                                        key.toLowerCase().includes(searchLower) ||
+                                        getFieldLabel(key).toLowerCase().includes(searchLower) ||
+                                        String(value).toLowerCase().includes(searchLower)
+                                      ) {
+                                        newMatchedKeys.add(key);
+                                      }
+                                    });
+                                    
+                                    setMatchedKeys(newMatchedKeys);
+                                    setSearchTerm(filterValue);
                                   }
                                 }}
                                 className="w-full pl-8 pr-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
@@ -2925,7 +2948,61 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                           </div>
                           <div className="flex gap-2">
                             <button
-                              onClick={() => setSearchTerm(filterInputValue)}
+                              onClick={() => {
+                                const filterValue = filterInputValue.trim();
+                                if (!filterValue) {
+                                  setSearchTerm("");
+                                  setMatchedKeys(new Set());
+                                  return;
+                                }
+                                
+                                // Calculate which keys match the filter
+                                const searchLower = filterValue.toLowerCase();
+                                const newMatchedKeys = new Set<string>();
+                                
+                                const textEditingFields = groupedFields.textEditing || [];
+                                textEditingFields.forEach(([key, value]) => {
+                                  const excludedKeys = [
+                                    "verificationFeature",
+                                    "exchangePoinToSaldo",
+                                    "permissionIntroFeatureEnabled",
+                                    "blockNonVerifiedMLM",
+                                    "exchangePoinToGift",
+                                    "blockNonVerifiedTransfer",
+                                    "biometrictTrxFeature",
+                                    "editProfileFeature",
+                                    "maximumVoucherActivation",
+                                    "minimumProductPriceToDisplay",
+                                    "cs_email",
+                                    "cs_whatsapp",
+                                    "cs_phone",
+                                    "maxWelcomePosterPerDay",
+                                    "newUserMarkup",
+                                    "newUserGroup",
+                                    "newUserUpline",
+                                    "blockNonVerifiedTransfer",
+                                    "blockNonVerifiedMLM",
+                                    "maxTransaction",
+                                    "maxTransactionsTotal",
+                                    "whatsappHelp",
+                                    "whatsappHelpFormat",
+                                    "liveChatHelpFormat",
+                                  ];
+                                  
+                                  if (excludedKeys.includes(key)) return;
+                                  
+                                  if (
+                                    key.toLowerCase().includes(searchLower) ||
+                                    getFieldLabel(key).toLowerCase().includes(searchLower) ||
+                                    String(value).toLowerCase().includes(searchLower)
+                                  ) {
+                                    newMatchedKeys.add(key);
+                                  }
+                                });
+                                
+                                setMatchedKeys(newMatchedKeys);
+                                setSearchTerm(filterValue);
+                              }}
                               className="px-4 py-1 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
                             >
                               Filter
@@ -2935,6 +3012,7 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                                 onClick={() => {
                                   setFilterInputValue("");
                                   setSearchTerm("");
+                                  setMatchedKeys(new Set());
                                 }}
                                 className="px-4 py-1 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
                               >
