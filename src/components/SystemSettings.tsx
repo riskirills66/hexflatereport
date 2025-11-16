@@ -109,6 +109,7 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
       text: string;
     } | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
+    const [filterInputValue, setFilterInputValue] = useState("");
     const [activeTab, setActiveTab] = useState<string>("info_config");
     const [expandedReceiptConfigs, setExpandedReceiptConfigs] = useState<
       Set<number>
@@ -2911,11 +2912,35 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                               <input
                                 type="text"
                                 placeholder="Cari pengaturan teks..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                value={filterInputValue}
+                                onChange={(e) => setFilterInputValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    setSearchTerm(filterInputValue);
+                                  }
+                                }}
                                 className="w-full pl-8 pr-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
                               />
                             </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setSearchTerm(filterInputValue)}
+                              className="px-4 py-1 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                            >
+                              Filter
+                            </button>
+                            {searchTerm && (
+                              <button
+                                onClick={() => {
+                                  setFilterInputValue("");
+                                  setSearchTerm("");
+                                }}
+                                className="px-4 py-1 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                              >
+                                Clear
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
