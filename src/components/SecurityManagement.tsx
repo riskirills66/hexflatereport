@@ -276,6 +276,31 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
           ...prev.cors_config, 
           [field]: value 
         } as SecurityConfig['cors_config'];
+      } else if (section === 'balance_transfer' && newConfig.balance_transfer) {
+        newConfig.balance_transfer = {
+          ...prev.balance_transfer,
+          [field]: value
+        } as SecurityConfig['balance_transfer'];
+      } else if (section === 'combotrx' && newConfig.combotrx) {
+        newConfig.combotrx = {
+          ...prev.combotrx,
+          [field]: value
+        } as SecurityConfig['combotrx'];
+      } else if (section === 'commission_exchange' && newConfig.commission_exchange) {
+        newConfig.commission_exchange = {
+          ...prev.commission_exchange,
+          [field]: value
+        } as SecurityConfig['commission_exchange'];
+      } else if (section === 'history' && newConfig.history) {
+        newConfig.history = {
+          ...prev.history,
+          [field]: value
+        } as SecurityConfig['history'];
+      } else if (section === 'poin' && newConfig.poin) {
+        newConfig.poin = {
+          ...prev.poin,
+          [field]: value
+        } as SecurityConfig['poin'];
       } else if (section === 'outbox_patterns' && newConfig.outbox_patterns && prev.outbox_patterns) {
         if (field.startsWith('static_')) {
           const staticField = field.replace('static_', '') as keyof NonNullable<SecurityConfig['outbox_patterns']>['static_patterns'];

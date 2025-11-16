@@ -118,6 +118,9 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
     const [localCektagihanKeys, setLocalCektagihanKeys] = useState<
       Record<string, string>
     >({});
+    const [localCombotrxHeaders, setLocalCombotrxHeaders] = useState<
+      Record<string, string>
+    >({});
     const [infoConfigOrder, setInfoConfigOrder] = useState<string[]>([]);
     const [tiketRegexConfigOrder, setTiketRegexConfigOrder] = useState<string[]>([]);
     const [checkProductsConfigOrder, setCheckProductsConfigOrder] = useState<string[]>([]);
@@ -664,6 +667,9 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
           pattern: "# (?P<kode>\\d+)\\|(?P<nama>[^|]+)\\|(?P<harga_final>\\d+)",
         },
       }));
+      
+      // Add to order array at the end
+      setCombotrxConfigOrder((prevOrder) => [...prevOrder, newHeader]);
     };
 
     const removeCombotrxHeader = (header: string) => {
@@ -673,6 +679,11 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         delete newConfig[header];
         return newConfig;
       });
+      
+      // Remove from order array
+      setCombotrxConfigOrder((prevOrder) => 
+        prevOrder.filter(h => h !== header)
+      );
     };
 
     const updateCombotrxHeaderName = (oldHeader: string, newHeader: string) => {
@@ -685,6 +696,26 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         delete newConfig[oldHeader];
         newConfig[newHeader] = headerData;
         return newConfig;
+      });
+      
+      // Update the order array to maintain position
+      setCombotrxConfigOrder((prevOrder) => {
+        const newOrder = [...prevOrder];
+        const oldIndex = newOrder.indexOf(oldHeader);
+        if (oldIndex !== -1) {
+          newOrder[oldIndex] = newHeader;
+        } else {
+          // If old header not in order, add new header at the end
+          newOrder.push(newHeader);
+        }
+        return newOrder;
+      });
+      
+      // Clear local state for the old header
+      setLocalCombotrxHeaders((prev) => {
+        const newLocal = { ...prev };
+        delete newLocal[oldHeader];
+        return newLocal;
       });
     };
 
@@ -813,6 +844,9 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         ...prev,
         [newKey]: "(?P<tagihan>[\\d.,]+)",
       }));
+      
+      // Add to order array at the end
+      setCektagihanConfigOrder((prevOrder) => [...prevOrder, newKey]);
     };
 
     const removeCektagihanKey = (key: string) => {
@@ -822,6 +856,11 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         delete newConfig[key];
         return newConfig;
       });
+      
+      // Remove from order array
+      setCektagihanConfigOrder((prevOrder) => 
+        prevOrder.filter(k => k !== key)
+      );
     };
 
     const updateCektagihanKeyName = (oldKey: string, newKey: string) => {
@@ -834,6 +873,19 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         delete newConfig[oldKey];
         newConfig[newKey] = value;
         return newConfig;
+      });
+      
+      // Update the order array to maintain position
+      setCektagihanConfigOrder((prevOrder) => {
+        const newOrder = [...prevOrder];
+        const oldIndex = newOrder.indexOf(oldKey);
+        if (oldIndex !== -1) {
+          newOrder[oldIndex] = newKey;
+        } else {
+          // If old key not in order, add new key at the end
+          newOrder.push(newKey);
+        }
+        return newOrder;
       });
     };
 
@@ -860,6 +912,33 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         if (newKey && newKey !== oldKey) {
           updateCektagihanKeyName(oldKey, newKey);
         }
+      }
+    };
+
+    const handleCombotrxHeaderNameChange = (oldHeader: string, newHeader: string) => {
+      setLocalCombotrxHeaders((prev) => ({
+        ...prev,
+        [oldHeader]: newHeader,
+      }));
+    };
+
+    const handleCombotrxHeaderNameBlur = (oldHeader: string) => {
+      const newHeader = localCombotrxHeaders[oldHeader];
+      if (newHeader && newHeader !== oldHeader) {
+        updateCombotrxHeaderName(oldHeader, newHeader);
+      }
+    };
+
+    const handleCombotrxHeaderNameKeyDown = (
+      oldHeader: string,
+      e: React.KeyboardEvent,
+    ) => {
+      if (e.key === "Enter") {
+        const newHeader = localCombotrxHeaders[oldHeader];
+        if (newHeader && newHeader !== oldHeader) {
+          updateCombotrxHeaderName(oldHeader, newHeader);
+        }
+        e.currentTarget.blur();
       }
     };
 
@@ -1584,6 +1663,9 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
       if (!checkProductsConfig) return;
       const newKey = `NEW_KEY_${Date.now()}`;
       setCheckProductsConfig({ ...checkProductsConfig, [newKey]: [""] });
+      
+      // Add to order array at the end
+      setCheckProductsConfigOrder((prevOrder) => [...prevOrder, newKey]);
     };
 
 
@@ -1783,6 +1865,19 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
           delete newConfig[key];
           newConfig[newKey] = products;
           setCheckProductsConfig(newConfig);
+          
+          // Update the order array to maintain position
+          setCheckProductsConfigOrder((prevOrder) => {
+            const newOrder = [...prevOrder];
+            const oldIndex = newOrder.indexOf(key);
+            if (oldIndex !== -1) {
+              newOrder[oldIndex] = newKey;
+            } else {
+              // If old key not in order, add new key at the end
+              newOrder.push(newKey);
+            }
+            return newOrder;
+          });
         }
       };
 
@@ -1825,6 +1920,11 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                     const newConfig = { ...checkProductsConfig };
                     delete newConfig[key];
                     setCheckProductsConfig(newConfig);
+                    
+                    // Remove from order array
+                    setCheckProductsConfigOrder((prevOrder) => 
+                      prevOrder.filter(k => k !== key)
+                    );
                   }}
                   className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200"
                   title="Hapus key ini"
@@ -2296,9 +2396,13 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                           <div className="flex items-center space-x-2">
                             <input
                               type="text"
-                              value={header}
+                              value={localCombotrxHeaders[header] !== undefined ? localCombotrxHeaders[header] : header}
                               onChange={(e) =>
-                                updateCombotrxHeaderName(header, e.target.value)
+                                handleCombotrxHeaderNameChange(header, e.target.value)
+                              }
+                              onBlur={() => handleCombotrxHeaderNameBlur(header)}
+                              onKeyDown={(e) =>
+                                handleCombotrxHeaderNameKeyDown(header, e)
                               }
                               className="text-sm font-medium text-gray-900 bg-transparent border-b border-gray-300 focus:outline-none focus:border-blue-500 px-1 py-1"
                               placeholder="Nama header"
