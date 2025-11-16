@@ -118,6 +118,12 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
     const [localCektagihanKeys, setLocalCektagihanKeys] = useState<
       Record<string, string>
     >({});
+    const [infoConfigOrder, setInfoConfigOrder] = useState<string[]>([]);
+    const [tiketRegexConfigOrder, setTiketRegexConfigOrder] = useState<string[]>([]);
+    const [checkProductsConfigOrder, setCheckProductsConfigOrder] = useState<string[]>([]);
+    const [combotrxConfigOrder, setCombotrxConfigOrder] = useState<string[]>([]);
+    const [cektagihanConfigOrder, setCektagihanConfigOrder] = useState<string[]>([]);
+    const [appRulesOrder, setAppRulesOrder] = useState<string[]>([]);
 
     useEffect(() => {
       loadAppRules();
@@ -209,30 +215,34 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
           const data = await response.json();
           if (data.success && data.rules) {
             setAppRules(data.rules);
+            setAppRulesOrder(Object.keys(data.rules));
           } else {
+            const defaultRules = getDefaultRules();
+            setAppRules(defaultRules);
+            setAppRulesOrder(Object.keys(defaultRules));
             setMessage({
               type: "error",
               text: data.message || "Gagal memuat pengaturan",
             });
-            // Fallback to default rules
-            setAppRules(getDefaultRules());
           }
         } else {
+          const defaultRules = getDefaultRules();
+          setAppRules(defaultRules);
+          setAppRulesOrder(Object.keys(defaultRules));
           setMessage({
             type: "error",
             text: "Gagal memuat pengaturan dari server",
           });
-          // Fallback to default rules
-          setAppRules(getDefaultRules());
         }
       } catch (error) {
         console.error("Failed to load app rules:", error);
+        const defaultRules = getDefaultRules();
+        setAppRules(defaultRules);
+        setAppRulesOrder(Object.keys(defaultRules));
         setMessage({
           type: "error",
           text: "Terjadi kesalahan saat memuat pengaturan",
         });
-        // Fallback to default rules
-        setAppRules(getDefaultRules());
       } finally {
         setLoadingStates((prev) => ({ ...prev, appRules: false }));
       }
@@ -264,19 +274,24 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
           const data = await response.json();
           if (data.success && data.config) {
             setInfoConfig(data.config);
+            setInfoConfigOrder(Object.keys(data.config));
           } else {
+            const defaultConfig = getDefaultInfoConfig();
+            setInfoConfig(defaultConfig);
+            setInfoConfigOrder(Object.keys(defaultConfig));
             setMessage({
               type: "error",
               text: data.message || "Gagal memuat konfigurasi info",
             });
-            setInfoConfig(getDefaultInfoConfig());
           }
         } else {
+          const defaultConfig = getDefaultInfoConfig();
+          setInfoConfig(defaultConfig);
+          setInfoConfigOrder(Object.keys(defaultConfig));
           setMessage({
             type: "error",
             text: "Gagal memuat konfigurasi info dari server",
           });
-          setInfoConfig(getDefaultInfoConfig());
         }
       } catch (error) {
         console.error("Failed to load info config:", error);
@@ -316,19 +331,24 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
           const data = await response.json();
           if (data.success && data.config) {
             setTiketRegexConfig(data.config);
+            setTiketRegexConfigOrder(Object.keys(data.config));
           } else {
+            const defaultConfig = getDefaultTiketRegexConfig();
+            setTiketRegexConfig(defaultConfig);
+            setTiketRegexConfigOrder(Object.keys(defaultConfig));
             setMessage({
               type: "error",
               text: data.message || "Gagal memuat konfigurasi tiket regex",
             });
-            setTiketRegexConfig(getDefaultTiketRegexConfig());
           }
         } else {
+          const defaultConfig = getDefaultTiketRegexConfig();
+          setTiketRegexConfig(defaultConfig);
+          setTiketRegexConfigOrder(Object.keys(defaultConfig));
           setMessage({
             type: "error",
             text: "Gagal memuat konfigurasi tiket regex dari server",
           });
-          setTiketRegexConfig(getDefaultTiketRegexConfig());
         }
       } catch (error) {
         console.error("Failed to load tiket regex config:", error);
@@ -368,27 +388,34 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
           const data = await response.json();
           if (data.success && data.config) {
             setCheckProductsConfig(data.config);
+            setCheckProductsConfigOrder(Object.keys(data.config));
           } else {
+            const defaultConfig = getDefaultCheckProductsConfig();
+            setCheckProductsConfig(defaultConfig);
+            setCheckProductsConfigOrder(Object.keys(defaultConfig));
             setMessage({
               type: "error",
               text: data.message || "Gagal memuat konfigurasi cek produk",
             });
-            setCheckProductsConfig(getDefaultCheckProductsConfig());
           }
         } else {
+          const defaultConfig = getDefaultCheckProductsConfig();
+          setCheckProductsConfig(defaultConfig);
+          setCheckProductsConfigOrder(Object.keys(defaultConfig));
           setMessage({
             type: "error",
             text: "Gagal memuat konfigurasi cek produk dari server",
           });
-          setCheckProductsConfig(getDefaultCheckProductsConfig());
         }
       } catch (error) {
         console.error("Failed to load check products config:", error);
+        const defaultConfig = getDefaultCheckProductsConfig();
+        setCheckProductsConfig(defaultConfig);
+        setCheckProductsConfigOrder(Object.keys(defaultConfig));
         setMessage({
           type: "error",
           text: "Terjadi kesalahan saat memuat konfigurasi cek produk",
         });
-        setCheckProductsConfig(getDefaultCheckProductsConfig());
       } finally {
         setLoadingStates((prev) => ({ ...prev, checkProducts: false }));
       }
@@ -515,27 +542,34 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
           const data = await response.json();
           if (data.success && data.config) {
             setCombotrxConfig(data.config);
+            setCombotrxConfigOrder(Object.keys(data.config));
           } else {
+            const defaultConfig = getDefaultCombotrxConfig();
+            setCombotrxConfig(defaultConfig);
+            setCombotrxConfigOrder(Object.keys(defaultConfig));
             setMessage({
               type: "error",
               text: data.message || "Gagal memuat konfigurasi combotrx",
             });
-            setCombotrxConfig(getDefaultCombotrxConfig());
           }
         } else {
+          const defaultConfig = getDefaultCombotrxConfig();
+          setCombotrxConfig(defaultConfig);
+          setCombotrxConfigOrder(Object.keys(defaultConfig));
           setMessage({
             type: "error",
             text: "Gagal memuat konfigurasi combotrx dari server",
           });
-          setCombotrxConfig(getDefaultCombotrxConfig());
         }
       } catch (error) {
         console.error("Failed to load combotrx config:", error);
+        const defaultConfig = getDefaultCombotrxConfig();
+        setCombotrxConfig(defaultConfig);
+        setCombotrxConfigOrder(Object.keys(defaultConfig));
         setMessage({
           type: "error",
           text: "Terjadi kesalahan saat memuat konfigurasi combotrx",
         });
-        setCombotrxConfig(getDefaultCombotrxConfig());
       } finally {
         setLoadingStates((prev) => ({ ...prev, combotrx: false }));
       }
@@ -681,11 +715,16 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
           const data = await response.json();
           if (data.success && data.config) {
             setCektagihanConfig(data.config);
+            setCektagihanConfigOrder(Object.keys(data.config));
           } else {
-            setCektagihanConfig(getDefaultCektagihanConfig());
+            const defaultConfig = getDefaultCektagihanConfig();
+            setCektagihanConfig(defaultConfig);
+            setCektagihanConfigOrder(Object.keys(defaultConfig));
           }
         } else {
-          setCektagihanConfig(getDefaultCektagihanConfig());
+          const defaultConfig = getDefaultCektagihanConfig();
+          setCektagihanConfig(defaultConfig);
+          setCektagihanConfigOrder(Object.keys(defaultConfig));
         }
       } catch (error) {
         console.error("Error loading cektagihan config:", error);
@@ -2035,8 +2074,12 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
             {infoConfig && activeTab === "info_config" && (
               <div className="px-4 pb-4">
                 <div className="space-y-3">
-                  {Object.entries(infoConfig).map(
-                    ([sectionKey, sectionValue]) => {
+                  {(() => {
+                    const order = infoConfigOrder.length > 0 ? infoConfigOrder : Object.keys(infoConfig);
+                    const allKeys = new Set([...order, ...Object.keys(infoConfig)]);
+                    return Array.from(allKeys).map((sectionKey) => {
+                      if (!infoConfig[sectionKey]) return null;
+                      const sectionValue = infoConfig[sectionKey];
                       if (
                         typeof sectionValue === "object" &&
                         sectionValue !== null
@@ -2064,8 +2107,8 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                         sectionValue,
                         updateInfoConfig,
                       );
-                    },
-                  )}
+                    }).filter(Boolean);
+                  })()}
                 </div>
               </div>
             )}
@@ -2116,8 +2159,12 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                   </ul>
                 </div>
                 <div className="space-y-4">
-                  {Object.entries(tiketRegexConfig).map(
-                    ([sectionKey, sectionValue]) => {
+                  {(() => {
+                    const order = tiketRegexConfigOrder.length > 0 ? tiketRegexConfigOrder : Object.keys(tiketRegexConfig);
+                    const allKeys = new Set([...order, ...Object.keys(tiketRegexConfig)]);
+                    return Array.from(allKeys).map((sectionKey) => {
+                      if (!tiketRegexConfig[sectionKey]) return null;
+                      const sectionValue = tiketRegexConfig[sectionKey];
                       if (
                         typeof sectionValue === "object" &&
                         sectionValue !== null
@@ -2145,8 +2192,8 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                         sectionValue,
                         updateTiketRegexConfig,
                       );
-                    },
-                  )}
+                    }).filter(Boolean);
+                  })()}
                 </div>
               </div>
             )}
@@ -2178,13 +2225,19 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                   </ul>
                 </div>
                 <div className="space-y-3">
-                  {Object.entries(checkProductsConfig).map(([key, products]) =>
-                    renderCheckProductField(
-                      key,
-                      products,
-                      updateCheckProductsConfig,
-                    ),
-                  )}
+                  {(() => {
+                    const order = checkProductsConfigOrder.length > 0 ? checkProductsConfigOrder : Object.keys(checkProductsConfig);
+                    const allKeys = new Set([...order, ...Object.keys(checkProductsConfig)]);
+                    return Array.from(allKeys).map((key) => {
+                      if (!checkProductsConfig[key]) return null;
+                      const products = checkProductsConfig[key];
+                      return renderCheckProductField(
+                        key,
+                        products,
+                        updateCheckProductsConfig,
+                      );
+                    }).filter(Boolean);
+                  })()}
                 </div>
                 <div className="mt-4 pt-4 border-t border-gray-200">
                   <button
@@ -2228,8 +2281,13 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                   </ul>
                 </div>
                 <div className="space-y-3">
-                  {Object.entries(combotrxConfig).map(
-                    ([header, headerData]) => (
+                  {(() => {
+                    const order = combotrxConfigOrder.length > 0 ? combotrxConfigOrder : Object.keys(combotrxConfig);
+                    const allKeys = new Set([...order, ...Object.keys(combotrxConfig)]);
+                    return Array.from(allKeys).map((header) => {
+                      if (!combotrxConfig[header]) return null;
+                      const headerData = combotrxConfig[header];
+                      return (
                       <div
                         key={header}
                         className="p-3 bg-white rounded-lg border border-gray-200"
@@ -2282,8 +2340,9 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                           ))}
                         </div>
                       </div>
-                    ),
-                  )}
+                      );
+                    }).filter(Boolean);
+                  })()}
                 </div>
                 <div className="mt-3 pt-3 border-t border-gray-200">
                   <button
@@ -2335,7 +2394,13 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                   </ul>
                 </div>
                 <div className="space-y-3">
-                  {Object.entries(cektagihanConfig).map(([key, value]) => (
+                  {(() => {
+                    const order = cektagihanConfigOrder.length > 0 ? cektagihanConfigOrder : Object.keys(cektagihanConfig);
+                    const allKeys = new Set([...order, ...Object.keys(cektagihanConfig)]);
+                    return Array.from(allKeys).map((key) => {
+                      if (!cektagihanConfig[key]) return null;
+                      const value = cektagihanConfig[key];
+                      return (
                     <div
                       key={key}
                       className="p-3 bg-white rounded-lg border border-gray-200"
@@ -2381,7 +2446,9 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                         </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  }).filter(Boolean);
+                  })()}
                 </div>
                 <div className="mt-3 pt-3 border-t border-gray-200">
                   <button
@@ -2888,13 +2955,18 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
 
             {/* Dynamic Sections (Text Editing) */}
             {Object.entries(groupedFields)
-              .sort(([a], [b]) => {
-                return a.localeCompare(b);
-              })
               .map(([section, fields]) => {
                 if (activeTab !== section) return null;
 
-                const filteredFields = fields.filter(
+                // Use stored order for textEditing section, otherwise use original order
+                let orderedFields = fields;
+                if (section === "textEditing" && appRulesOrder.length > 0) {
+                  orderedFields = appRulesOrder
+                    .map(key => [key, appRules?.[key]])
+                    .filter(([key, value]) => value !== undefined) as Array<[string, any]>;
+                }
+
+                const filteredFields = orderedFields.filter(
                   ([key, value]) => shouldShowField(key, value),
                 );
 
