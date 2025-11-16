@@ -14,8 +14,10 @@ const ReleasePrep: React.FC = () => {
   const [formData, setFormData] = useState({
     version: "1.0.0",
     versionCode: "1",
-    about: "Aplikasi ini adalah solusi mobile agen pulsa, mengelola pembayaran dan penjualan pulsa dan paket serta tagihan PPOB",
-    legal: "© 2025 Hexflate Agen Pulsa. Seluruh hak cipta dilindungi undang-undang. Nama dan logo Hexflate adalah merek dagang terdaftar",
+    about:
+      "Aplikasi ini adalah solusi mobile agen pulsa, mengelola pembayaran dan penjualan pulsa dan paket serta tagihan PPOB",
+    legal:
+      "© 2025 Hexflate Agen Pulsa. Seluruh hak cipta dilindungi undang-undang. Nama dan logo Hexflate adalah merek dagang terdaftar",
     lightColor: "#0273EE",
     darkColor: "#0052D1",
     iconFile: null as File | null,
@@ -25,7 +27,7 @@ const ReleasePrep: React.FC = () => {
   const [generated, setGenerated] = useState(false);
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -121,7 +123,6 @@ const ReleasePrep: React.FC = () => {
     }
   };
 
-
   return (
     <div className="space-y-3">
       <Section title="Informasi Aplikasi">
@@ -189,7 +190,7 @@ const ReleasePrep: React.FC = () => {
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-0.5">
-              Warna Tema Terang <span className="text-red-500">*</span>
+              Warna Aksen Terang <span className="text-red-500">*</span>
             </label>
             <div className="flex gap-1.5">
               <input
@@ -212,7 +213,7 @@ const ReleasePrep: React.FC = () => {
 
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-0.5">
-              Warna Tema Gelap <span className="text-red-500">*</span>
+              Warna Aksen Gelap <span className="text-red-500">*</span>
             </label>
             <div className="flex gap-1.5">
               <input
@@ -248,12 +249,11 @@ const ReleasePrep: React.FC = () => {
               onChange={handleFileChange}
               className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs"
             />
-            <p className="text-xs text-gray-500 mt-0.5">
-              PNG 1024x1024
-            </p>
+            <p className="text-xs text-gray-500 mt-0.5">PNG 1024x1024</p>
             {formData.iconFile && (
               <p className="text-xs text-green-600 mt-0.5">
-                ✓ {formData.iconFile.name} ({Math.round(formData.iconFile.size / 1024)} KB)
+                ✓ {formData.iconFile.name} (
+                {Math.round(formData.iconFile.size / 1024)} KB)
               </p>
             )}
           </div>
@@ -271,12 +271,11 @@ const ReleasePrep: React.FC = () => {
               onChange={handleFileChange}
               className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs"
             />
-            <p className="text-xs text-gray-500 mt-0.5">
-              PNG 1080x1920
-            </p>
+            <p className="text-xs text-gray-500 mt-0.5">PNG 1080x1920</p>
             {formData.splashFile && (
               <p className="text-xs text-green-600 mt-0.5">
-                ✓ {formData.splashFile.name} ({Math.round(formData.splashFile.size / 1024)} KB)
+                ✓ {formData.splashFile.name} (
+                {Math.round(formData.splashFile.size / 1024)} KB)
               </p>
             )}
           </div>
@@ -286,7 +285,9 @@ const ReleasePrep: React.FC = () => {
       <Section title="Generate & Download">
         <div className="space-y-1.5">
           <p className="text-xs text-gray-700">
-            File ZIP berisi: <span className="font-mono">app_config.json</span>, <span className="font-mono">app_icon_1024.png</span>, <span className="font-mono">splash_1080x1920.png</span>
+            File ZIP berisi: <span className="font-mono">app_config.json</span>,{" "}
+            <span className="font-mono">app_icon_1024.png</span>,{" "}
+            <span className="font-mono">splash_1080x1920.png</span>
           </p>
           <button
             onClick={handleDownloadZip}
@@ -297,7 +298,8 @@ const ReleasePrep: React.FC = () => {
           </button>
           {generated && (
             <p className="text-xs text-green-600">
-              ✓ File ZIP berhasil diunduh! Kirimkan ke developer untuk proses build.
+              ✓ File ZIP berhasil diunduh! Kirimkan ke developer untuk proses
+              build.
             </p>
           )}
         </div>
@@ -306,7 +308,8 @@ const ReleasePrep: React.FC = () => {
       <Section title="Kirim ke Developer">
         <div className="bg-blue-50 border border-blue-200 rounded p-2">
           <p className="text-xs text-blue-800">
-            Setelah mengunduh file ZIP, kirimkan file tersebut ke developer untuk meminta build aplikasi (AAB & APK).
+            Setelah mengunduh file ZIP, kirimkan file tersebut ke developer
+            untuk meminta build aplikasi (AAB & APK).
           </p>
         </div>
       </Section>
