@@ -17,6 +17,7 @@
     "@types/react-router-dom": "^5.3.3",
     "axios": "^1.12.2",
     "clsx": "^2.0.0",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.263.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
