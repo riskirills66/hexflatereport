@@ -2893,13 +2893,11 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                 return a.localeCompare(b);
               })
               .map(([section, fields]) => {
+                if (activeTab !== section) return null;
+
                 const filteredFields = fields.filter(
                   ([key, value]) => shouldShowField(key, value),
                 );
-
-                if (filteredFields.length === 0) return null;
-
-                if (activeTab !== section) return null;
 
                 return (
                   <div className="px-4 pb-4">
@@ -2923,11 +2921,17 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                       </div>
                     )}
                     
-                    <div className="space-y-3">
-                      {filteredFields.map(([key, value]) =>
-                        renderField(key, value),
-                      )}
-                    </div>
+                    {filteredFields.length > 0 ? (
+                      <div className="space-y-3">
+                        {filteredFields.map(([key, value]) =>
+                          renderField(key, value),
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        Tidak ada hasil yang cocok dengan pencarian Anda.
+                      </div>
+                    )}
                   </div>
                 );
               })}
