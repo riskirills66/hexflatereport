@@ -4,208 +4,314 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({
   title,
   children,
 }) => (
-  <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-5">
-    <h3 className="text-base font-semibold text-gray-900 mb-3">{title}</h3>
+  <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-3">
+    <h3 className="text-xs font-semibold text-gray-900 mb-1.5">{title}</h3>
     <div className="prose prose-sm max-w-none text-gray-700">{children}</div>
   </div>
 );
 
-const CodeBlock: React.FC<{ language?: string; code: string }> = ({ code }) => (
-  <pre className="bg-gray-900 text-gray-100 text-xs rounded-md p-3 overflow-auto">
-    <code>{code}</code>
-  </pre>
-);
-
 const ReleasePrep: React.FC = () => {
-  const [copied, setCopied] = useState(false);
+  const [formData, setFormData] = useState({
+    version: "1.0.0",
+    versionCode: "1",
+    about:
+      "Aplikasi ini adalah solusi mobile agen pulsa, mengelola pembayaran dan penjualan pulsa dan paket serta tagihan PPOB",
+    legal:
+      "© 2025 Hexflate Agen Pulsa. Seluruh hak cipta dilindungi undang-undang. Nama dan logo Hexflate adalah merek dagang terdaftar",
+    lightColor: "#0273EE",
+    darkColor: "#0052D1",
+    iconFile: null as File | null,
+    splashFile: null as File | null,
+  });
 
-  const appJson = `{
-  "version": "1.0.0",
-  "version_code": "1",
-  "about" : "Aplikasi ini adalah solusi mobile agen pulsa, mengelola pembayaran dan penjualan pulsa dan paket serta tagihan PPOB",
-  "legal": "© 2025 Hexflate Agen Puulsa. Seluruh hak cipta dilindungi undang-undang. Nama dan logo Hexflate adalah merek dagang terdaftar",
-  "light_seed_color": "Color.fromARGB(255, 2, 115, 238)", // Warna aksen untuk mode terang
-  "dark_seed_color": "Color.fromARGB(255, 0, 82, 209)" // Warna aksen untuk mode gelap
-}`;
+  const [generated, setGenerated] = useState(false);
 
-  const keyProps = `storePassword=justextrasteps
-keyPassword=justextrasteps
-keyAlias=upload
-storeFile=upload-keystore.jks`;
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    setGenerated(false);
+  };
 
-  const emailTemplate = `Request Build Release (AAB & APK)\n\nHalo Tim Dev,\n\nMohon bantu build rilis aplikasi Hexflate dan kirimkan file berikut:\n- AAB (release)\n- APK (release, universal)\n\nDetail & lampiran disertakan:\n- Icon 1024x1024 (PNG transparan)\n- Splash 1080x1920 (PNG transparan, potret)\n- app_config.json\n- google-services.json (Firebase)\n- key.properties\n- upload-keystore.jks\n- Kredensial akun demo (di bawah)\n\nInformasi rilis:\n- package_name: com.hexflate.pulsa\n- version: 1.0.0\n- version_code: 1\n\nKredensial akun demo:\n- ID: HEX8888\n- NOMOR: 082233445566 \n\nCatatan tambahan:\n- Pastikan signature menggunakan upload-keystore yang terlampir.\n- Pastikan versi dan package sesuai.\n\nTerima kasih.`;
-
-  const handleCopyTemplate = async () => {
-    try {
-      await navigator.clipboard.writeText(emailTemplate);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (e) {
-      setCopied(false);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, files } = e.target;
+    if (files && files[0]) {
+      setFormData((prev) => ({ ...prev, [name]: files[0] }));
+      setGenerated(false);
     }
   };
 
-  const handleDownloadChecklist = () => {
-    const checklist = `Checklist Rilis - Hexflate\n\nLampirkan berkas berikut ke tim developer:\n[ ] app_icon_1024.png (PNG, transparan)\n[ ] splash_1080x1920.png (PNG, transparan)\n[ ] app_config.json\n[ ] google-services.json\n[ ] key.properties\n[ ] upload-keystore.jks\n[ ] Kredensial akun demo (username & password)\n\nInformasi versi:\n- package_name: com.hexflate.pulsa\n- version: 1.0.0\n- version_code: 1\n`;
-    const blob = new Blob([checklist], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "release_checklist.txt";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const parseColorToARGB = (color: string): string => {
+    // Handle RGB format: rgb(255, 115, 238) or rgba(255, 115, 238, 1)
+    const rgbMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (rgbMatch) {
+      const r = parseInt(rgbMatch[1], 10);
+      const g = parseInt(rgbMatch[2], 10);
+      const b = parseInt(rgbMatch[3], 10);
+      return `Color.fromARGB(255, ${r}, ${g}, ${b})`;
+    }
+
+    // Handle hex format: #0273EE or 0273EE
+    let hex = color.replace("#", "");
+    if (hex.length === 6) {
+      const r = parseInt(hex.substring(0, 2), 16);
+      const g = parseInt(hex.substring(2, 4), 16);
+      const b = parseInt(hex.substring(4, 6), 16);
+      return `Color.fromARGB(255, ${r}, ${g}, ${b})`;
+    }
+
+    // Fallback to default if parsing fails
+    return `Color.fromARGB(255, 2, 115, 238)`;
+  };
+
+  const generateAppConfig = () => {
+    const lightColorARGB = parseColorToARGB(formData.lightColor);
+    const darkColorARGB = parseColorToARGB(formData.darkColor);
+
+    const appConfig = {
+      version: formData.version,
+      version_code: formData.versionCode,
+      about: formData.about,
+      legal: formData.legal,
+      light_seed_color: lightColorARGB,
+      dark_seed_color: darkColorARGB,
+    };
+
+    return JSON.stringify(appConfig, null, 2);
+  };
+
+  const handleDownloadZip = async () => {
+    if (!formData.iconFile || !formData.splashFile) {
+      alert("Harap upload icon dan splash screen terlebih dahulu!");
+      return;
+    }
+
+    try {
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+
+      // Add app_config.json
+      const config = generateAppConfig();
+      zip.file("app_config.json", config);
+
+      // Add icon file
+      const iconData = await formData.iconFile.arrayBuffer();
+      zip.file("app_icon_1024.png", iconData);
+
+      // Add splash file
+      const splashData = await formData.splashFile.arrayBuffer();
+      zip.file("splash_1080x1920.png", splashData);
+
+      // Generate ZIP file
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+
+      // Download ZIP
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `release-prep-${formData.version}-${formData.versionCode}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setGenerated(true);
+    } catch (error) {
+      console.error("Error creating ZIP file:", error);
+      alert("Terjadi kesalahan saat membuat file ZIP. Silakan coba lagi.");
+    }
   };
 
   return (
-    <div className="space-y-5">
-      <div className="bg-indigo-600 text-white rounded-lg p-5">
-        <h2 className="text-lg font-bold">Panduan Persiapan Rilis Aplikasi</h2>
-        <p className="text-indigo-100 text-sm mt-1">
-          Checklist berkas dan konfigurasi yang diperlukan sebelum build rilis.
-        </p>
-      </div>
+    <div className="space-y-3">
+      <Section title="Informasi Aplikasi">
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-0.5">
+                Versi Aplikasi <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                name="version"
+                value={formData.version}
+                onChange={handleInputChange}
+                placeholder="1.0.0"
+                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-0.5">
+                Version Code <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                name="versionCode"
+                value={formData.versionCode}
+                onChange={handleInputChange}
+                placeholder="1"
+                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
 
-      <Section title="Logo Transparan (PNG 1024x1024)">
-        <ul className="list-disc pl-5">
-          <li>Format: PNG, transparan, tanpa latar belakang.</li>
-          <li>Ukuran: 1024 x 1024 piksel.</li>
-          <li>
-            Nama file yang direkomendasikan:{" "}
-            <span className="font-mono">app_icon_1024.png</span>.
-          </li>
-        </ul>
-      </Section>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-0.5">
+              Tentang Aplikasi <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              name="about"
+              value={formData.about}
+              onChange={handleInputChange}
+              rows={2}
+              placeholder="Deskripsi singkat tentang aplikasi Anda"
+              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
+            />
+          </div>
 
-      <Section title="Konfigurasi Aplikasi (JSON)">
-        <p className="mb-2">
-          Siapkan berkas konfigurasi aplikasi dalam format JSON seperti contoh
-          berikut:
-        </p>
-        <CodeBlock code={appJson} />
-        <p className="mt-2 text-sm text-gray-600">
-          Simpan sebagai <span className="font-mono">app_config.json</span> dan
-          pastikan nilai sesuai proyek Anda.
-        </p>
-      </Section>
-
-      <Section title="key.properties (Android keystore)">
-        <p className="mb-2">Contoh isi berkas:</p>
-        <CodeBlock code={keyProps} />
-        <ul className="list-disc pl-5 mt-2">
-          <li>
-            Pastikan <span className="font-mono">upload-keystore.jks</span>{" "}
-            tersedia dan aman.
-          </li>
-          <li>Jangan commit berkas sensitif ke repository publik.</li>
-        </ul>
-      </Section>
-
-      <Section title="Splash Screen Transparan (PNG 1080x1920, Potrait)">
-        <ul className="list-disc pl-5">
-          <li>Format: PNG, latar belakang transparan.</li>
-          <li>Ukuran: 1080 x 1920 piksel, orientasi potret.</li>
-          <li>
-            Nama file yang direkomendasikan:{" "}
-            <span className="font-mono">splash_1080x1920.png</span>.
-          </li>
-        </ul>
-      </Section>
-
-      <Section title="Upload Keystore (Jika Sudah Dibuat)">
-        <ul className="list-disc pl-5">
-          <li>
-            Simpan keystore <strong>di tempat aman</strong> dan buat cadangan.
-          </li>
-          <li>
-            Pastikan password dan alias sesuai dengan isi{" "}
-            <span className="font-mono">key.properties</span>.
-          </li>
-        </ul>
-      </Section>
-
-      <Section title="Akun Dummy (Demo)">
-        <ul className="list-disc pl-5">
-          <li>Pastikan ada akun dummy untuk keperluan demo/QA.</li>
-          <li>
-            Dokumentasikan kredensial demo di tempat yang aman dan dibagikan ke
-            tim terkait.
-          </li>
-          <li>
-            Pastikan hak akses sesuai agar tidak mengganggu data produksi.
-          </li>
-        </ul>
-      </Section>
-
-      <Section title="Kirim ke Kontak Developer (Request AAB & APK)">
-        <p className="mb-2">
-          Gunakan pesan berikut untuk dikirim ke kontak developer
-          (WhatsApp/Telegram/Email) saat meminta build{" "}
-          <span className="font-mono">AAB</span> dan{" "}
-          <span className="font-mono">APK</span>:
-        </p>
-        <div className="bg-gray-50 border border-gray-200 rounded-md p-3">
-          <textarea
-            readOnly
-            value={emailTemplate}
-            className="w-full h-56 text-xs font-mono bg-transparent focus:outline-none resize-none"
-          />
-          <div className="flex items-center justify-between mt-2">
-            <button
-              onClick={handleCopyTemplate}
-              className="px-3 py-1.5 text-xs rounded bg-blue-600 text-white hover:bg-blue-700"
-            >
-              {copied ? "Tersalin!" : "Salin Template"}
-            </button>
-            <button
-              onClick={handleDownloadChecklist}
-              className="px-3 py-1.5 text-xs rounded bg-gray-800 text-white hover:bg-gray-900"
-            >
-              Unduh Checklist.txt
-            </button>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-0.5">
+              Informasi Legal <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              name="legal"
+              value={formData.legal}
+              onChange={handleInputChange}
+              rows={2}
+              placeholder="© 2025 Nama Perusahaan. Seluruh hak cipta dilindungi."
+              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
+            />
           </div>
         </div>
-        <div className="mt-3">
-          <p className="text-sm text-gray-700 font-medium">
-            Pastikan berkas berikut dilampirkan:
-          </p>
-          <ul className="list-disc pl-5 text-sm">
-            <li>
-              <span className="font-mono">app_icon_1024.png</span> (logo
-              transparan 1024x1024)
-            </li>
-            <li>
-              <span className="font-mono">splash_1080x1920.png</span> (splash
-              transparan potret)
-            </li>
-            <li>
-              <span className="font-mono">app_config.json</span> (konfigurasi
-              aplikasi)
-            </li>
-            <li>
-              <span className="font-mono">google-services.json</span> (Firebase)
-            </li>
-            <li>
-              <span className="font-mono">key.properties</span> dan{" "}
-              <span className="font-mono">upload-keystore.jks</span>
-            </li>
-            <li>Kredensial akun demo (username & password)</li>
-          </ul>
+      </Section>
+
+      <Section title="Tema Warna">
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-0.5">
+              Warna Aksen Terang <span className="text-red-500">*</span>
+            </label>
+            <div className="flex gap-1.5">
+              <input
+                type="color"
+                name="lightColor"
+                value={formData.lightColor}
+                onChange={handleInputChange}
+                className="h-8 w-12 border border-gray-300 rounded cursor-pointer"
+              />
+              <input
+                type="text"
+                name="lightColor"
+                value={formData.lightColor}
+                onChange={handleInputChange}
+                placeholder="#0273EE"
+                className="flex-1 px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono text-xs"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-0.5">
+              Warna Aksen Gelap <span className="text-red-500">*</span>
+            </label>
+            <div className="flex gap-1.5">
+              <input
+                type="color"
+                name="darkColor"
+                value={formData.darkColor}
+                onChange={handleInputChange}
+                className="h-8 w-12 border border-gray-300 rounded cursor-pointer"
+              />
+              <input
+                type="text"
+                name="darkColor"
+                value={formData.darkColor}
+                onChange={handleInputChange}
+                placeholder="#0052D1"
+                className="flex-1 px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono text-xs"
+              />
+            </div>
+          </div>
         </div>
       </Section>
 
-      <Section title="Catatan Tambahan">
-        <ul className="list-disc pl-5">
-          <li>
-            Verifikasi kembali <span className="font-mono">package_name</span>{" "}
-            konsisten dengan Firebase dan Play Console.
-          </li>
-          <li>
-            Perbarui <span className="font-mono">version</span> dan{" "}
-            <span className="font-mono">version_code</span> sebelum build.
-          </li>
-        </ul>
+      <div className="grid grid-cols-2 gap-3">
+        <Section title="Icon Aplikasi">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-0.5">
+              Upload Icon <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="file"
+              name="iconFile"
+              accept="image/png"
+              onChange={handleFileChange}
+              className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs"
+            />
+            <p className="text-xs text-gray-500 mt-0.5">PNG 1024x1024</p>
+            {formData.iconFile && (
+              <p className="text-xs text-green-600 mt-0.5">
+                ✓ {formData.iconFile.name} (
+                {Math.round(formData.iconFile.size / 1024)} KB)
+              </p>
+            )}
+          </div>
+        </Section>
+
+        <Section title="Splash Screen">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-0.5">
+              Upload Splash Screen <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="file"
+              name="splashFile"
+              accept="image/png"
+              onChange={handleFileChange}
+              className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs"
+            />
+            <p className="text-xs text-gray-500 mt-0.5">PNG 1080x1920</p>
+            {formData.splashFile && (
+              <p className="text-xs text-green-600 mt-0.5">
+                ✓ {formData.splashFile.name} (
+                {Math.round(formData.splashFile.size / 1024)} KB)
+              </p>
+            )}
+          </div>
+        </Section>
+      </div>
+
+      <Section title="Generate & Download">
+        <div className="space-y-1.5">
+          <p className="text-xs text-gray-700">
+            File ZIP berisi: <span className="font-mono">app_config.json</span>,{" "}
+            <span className="font-mono">app_icon_1024.png</span>,{" "}
+            <span className="font-mono">splash_1080x1920.png</span>
+          </p>
+          <button
+            onClick={handleDownloadZip}
+            disabled={!formData.iconFile || !formData.splashFile}
+            className="px-3 py-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-400 disabled:cursor-not-allowed text-xs"
+          >
+            Unduh Package ZIP
+          </button>
+          {generated && (
+            <p className="text-xs text-green-600">
+              ✓ File ZIP berhasil diunduh! Kirimkan ke developer untuk proses
+              build.
+            </p>
+          )}
+        </div>
+      </Section>
+
+      <Section title="Kirim ke Developer">
+        <div className="bg-blue-50 border border-blue-200 rounded p-2">
+          <p className="text-xs text-blue-800">
+            Setelah mengunduh file ZIP, kirimkan file tersebut ke developer
+            untuk meminta build aplikasi (AAB & APK).
+          </p>
+        </div>
       </Section>
     </div>
   );

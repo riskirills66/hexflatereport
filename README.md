@@ -9,9 +9,11 @@ Web report dan admin panel berbasis React.
 
 ## Local Development
 
-1. Install dependencies:
+1. Clone Repository & Install dependencies:
 
 ```bash
+git clone https://github.com/riskirills66/hexflatereport
+cd hexflatereport
 npm install
 ```
 
@@ -31,6 +33,10 @@ VITE_WEB_TITLE=AGEN PULS
 VITE_WEB_FAVICON=https://vite.dev/logo.svg
 ```
 
+**Catatan:**
+- `VITE_API_ENDPOINTS`: Harus diarahkan ke backend, baik melalui Cloudflare Tunnel atau Static IP
+- `VITE_X_TOKEN_VALUE`: Harus diminta ke developer/owner
+
 4. Jalankan development server:
 
 ```bash
@@ -47,7 +53,7 @@ npm run build
 
 ## Vercel Deployment
 
-1. Fork repository ini ke akun Github Anda
+1. Fork repository [ini](https://github.com/riskirills66/hexflatereport) ke akun Github Anda
 
 2. Import fork di [Vercel](https://vercel.com)
 
@@ -59,8 +65,8 @@ npm run build
 4. **Tambahkan Environment Variables** di Vercel:
    - Masuk ke Settings ? Environment Variables
    - Tambahkan semua variabel dari file `.env.example`:
-     - `VITE_API_ENDPOINTS`
-     - `VITE_X_TOKEN_VALUE`
+     - `VITE_API_ENDPOINTS` - Harus diarahkan ke backend, baik melalui Cloudflare Tunnel atau Static IP
+     - `VITE_X_TOKEN_VALUE` - Harus diminta ke developer/owner
      - `VITE_WS_BACKEND_HOST`
      - `VITE_WEB_TITLE`
      - `VITE_WEB_FAVICON`
