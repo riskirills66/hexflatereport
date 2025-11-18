@@ -37,13 +37,13 @@ interface SecurityConfig {
     outbox_like_pattern: string;
     pesan_format_no_val: string;
     pesan_format_with_val: string;
-    combo_code_format: string;
     sdh_pernah_filter: string;
   };
   trx?: {
     pesan_format_no_val: string;
     pesan_format_with_val_nonzero: string;
     pesan_format_with_val_zero: string;
+    combo_code_format: string;
   };
   commission_exchange?: {
     tukar_format: string;
@@ -1364,7 +1364,6 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                             outbox_like_pattern: "%{product}.{destination}%Sukses%",
                             pesan_format_no_val: "{trxid}.{product}.{destination}.{pin}",
                             pesan_format_with_val: "{trxid}.{product}.{destination}.{val}.{pin}",
-                            combo_code_format: "{trxid}.{combo_code}.{product}.{destination}.{pin}",
                             sdh_pernah_filter: "%sdh pernah%"
                           }
                         }));
@@ -1444,21 +1443,6 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                       </p>
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Format Combo Code
-                      </label>
-                      <input
-                        type="text"
-                        value={config.combotrx.combo_code_format || ''}
-                        onChange={(e) => updateConfig('combotrx', 'combo_code_format', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="{trxid}.{combo_code}.{product}.{destination}.{pin}"
-                      />
-                      <p className="text-sm text-gray-500 mt-1">
-                        Format untuk pesan dengan combo code. Gunakan {`{trxid}`}, {`{combo_code}`}, {`{product}`}, {`{destination}`}, {`{pin}`} sebagai placeholder.
-                      </p>
-                    </div>
                   </div>
                 )}
               </div>
@@ -1481,7 +1465,8 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                           trx: {
                             pesan_format_no_val: "{trxid}.{product}.{destination}.{pin}",
                             pesan_format_with_val_nonzero: "{trxid}.{product}.{destination}.{val}.{pin}",
-                            pesan_format_with_val_zero: "{product}.{destination}.{pin}.{val}"
+                            pesan_format_with_val_zero: "{product}.{destination}.{pin}.{val}",
+                            combo_code_format: "{trxid}.{combo_code}.{product}.{destination}.{pin}"
                           }
                         }));
                       }}
@@ -1542,6 +1527,22 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                           Format untuk pesan dengan nilai zero. Gunakan {`{product}`}, {`{destination}`}, {`{pin}`}, {`{val}`} sebagai placeholder.
                         </p>
                       </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Format Combo Code
+                      </label>
+                      <input
+                        type="text"
+                        value={config.trx.combo_code_format || ''}
+                        onChange={(e) => updateConfig('trx', 'combo_code_format', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="{trxid}.{combo_code}.{product}.{destination}.{pin}"
+                      />
+                      <p className="text-sm text-gray-500 mt-1">
+                        Format untuk pesan dengan combo code. Gunakan {`{trxid}`}, {`{combo_code}`}, {`{product}`}, {`{destination}`}, {`{pin}`} sebagai placeholder.
+                      </p>
                     </div>
                   </div>
                 )}
