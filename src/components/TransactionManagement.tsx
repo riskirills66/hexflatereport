@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
+import { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { RefreshCw, FileText } from 'lucide-react';
 import { getApiUrl, X_TOKEN_VALUE } from '../config/api';
 import { Spinner, Button, Table } from '../styles';
+import { getCachedTransactions, setCachedTransactions, mergeTransactions } from '../utils/transactionCache';
 
 interface TransactionManagementProps {
   authSeed: string;
@@ -33,7 +34,6 @@ interface TransactionAnalytics {
 const TransactionManagement = forwardRef<TransactionManagementRef, TransactionManagementProps>(({ authSeed, onAnalyticsChange }, ref) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [analytics, setAnalytics] = useState<TransactionAnalytics | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -53,13 +53,10 @@ const TransactionManagement = forwardRef<TransactionManagementRef, TransactionMa
     }
   }, [analytics, onAnalyticsChange]);
 
-  useEffect(() => {
-    fetchTransactions();
-    fetchAnalytics();
-  }, [refreshKey]);
-
-  const fetchAnalytics = async () => {
-    setIsLoadingAnalytics(true);
+  const fetchAnalytics = async (background = false) => {
+    if (!background) {
+      setIsLoadingAnalytics(true);
+    }
     
     try {
       const sessionKey = localStorage.getItem('adminSessionKey');
@@ -84,6 +81,11 @@ const TransactionManagement = forwardRef<TransactionManagementRef, TransactionMa
 
       if (data.success && data.analytics) {
         setAnalytics(data.analytics);
+        // Update cache with new analytics
+        const cached = getCachedTransactions();
+        if (cached) {
+          setCachedTransactions(cached.transactions, data.analytics);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch analytics:', err);
@@ -92,14 +94,17 @@ const TransactionManagement = forwardRef<TransactionManagementRef, TransactionMa
     }
   };
 
-  const fetchTransactions = async () => {
-    setIsLoading(true);
-    setError(null);
+  const fetchTransactions = async (background = false) => {
+    if (!background) {
+      setError(null);
+    }
     
     try {
       const sessionKey = localStorage.getItem('adminSessionKey');
       if (!sessionKey) {
-        setError('Kunci sesi tidak ditemukan. Silakan login lagi.');
+        if (!background) {
+          setError('Kunci sesi tidak ditemukan. Silakan login lagi.');
+        }
         return;
       }
 
@@ -119,17 +124,49 @@ const TransactionManagement = forwardRef<TransactionManagementRef, TransactionMa
       const data = await response.json();
 
       if (data.success && data.transactions) {
-        setTransactions(data.transactions);
+        // Merge/update transactions without rebuilding components
+        setTransactions(prev => {
+          const merged = mergeTransactions(prev, data.transactions || []);
+          return merged;
+        });
+        
+        // Update cache
+        const cached = getCachedTransactions();
+        const currentAnalytics = cached?.analytics || analytics;
+        setCachedTransactions(data.transactions, currentAnalytics);
       } else {
-        setError(data.message || 'Gagal memuat data transaksi');
+        if (!background) {
+          setError(data.message || 'Gagal memuat data transaksi');
+        }
       }
     } catch (err) {
       console.error('Failed to fetch transactions:', err);
-      setError('Gagal memuat data transaksi dari backend');
-    } finally {
-      setIsLoading(false);
+      if (!background) {
+        setError('Gagal memuat data transaksi dari backend');
+      }
     }
   };
+
+  useEffect(() => {
+    // Load from cache immediately on mount
+    const cached = getCachedTransactions();
+    if (cached) {
+      setTransactions(cached.transactions);
+      setAnalytics(cached.analytics);
+    }
+    
+    // Fetch fresh data in background
+    fetchTransactions(true);
+    fetchAnalytics(true);
+  }, []);
+
+  useEffect(() => {
+    // Fetch fresh data when refresh is triggered
+    if (refreshKey > 0) {
+      fetchTransactions(false);
+      fetchAnalytics(false);
+    }
+  }, [refreshKey]);
 
   const refreshTransactions = () => {
     setRefreshKey(prev => prev + 1);
@@ -196,17 +233,6 @@ const TransactionManagement = forwardRef<TransactionManagementRef, TransactionMa
       </span>
     )
   }));
-
-  if (isLoading) {
-    return (
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <div className="flex items-center justify-center py-12">
-          <Spinner size="lg" color="primary" />
-          <span className="ml-3 text-gray-600">Memuat data transaksi...</span>
-        </div>
-      </div>
-    );
-  }
 
   if (error) {
     return (

@@ -53,6 +53,7 @@ import ChatManagement, { ChatManagementRef } from "./ChatManagement";
 import SessionManager, { SessionManagerRef } from "./SessionManager";
 import { formatJSONForExport, formatJSONForAPI } from "../utils/jsonFormatter";
 import { preloadMembers } from "../utils/memberCache";
+import { preloadTransactions } from "../utils/transactionCache";
 
 interface AdminDashboardProps {
   authSeed: string;
@@ -251,6 +252,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       levelFilter: '',
       verificationFilter: 'all',
     });
+    // Preload transaction data for cache-first pattern
+    preloadTransactions(authSeed);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
