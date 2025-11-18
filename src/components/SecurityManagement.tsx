@@ -37,10 +37,19 @@ interface SecurityConfig {
     outbox_like_pattern: string;
     pesan_format_no_val: string;
     pesan_format_with_val: string;
+    combo_code_format: string;
     sdh_pernah_filter: string;
+  };
+  trx?: {
+    pesan_format_no_val: string;
+    pesan_format_with_val_nonzero: string;
+    pesan_format_with_val_zero: string;
   };
   commission_exchange?: {
     tukar_format: string;
+  };
+  client_config?: {
+    blocked_referrals: string[];
   };
   history?: {
     minimum_harga_to_display_in_history: number;
@@ -140,7 +149,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
       // Only set if current tab's config doesn't exist
       const currentTabHasConfig = 
         (activeTab === 'priority_settings' && appRules) ||
-        (activeTab === 'transfer_transaksi' && (config.balance_transfer || config.combotrx || config.commission_exchange)) ||
+        (activeTab === 'transfer_transaksi' && (config.balance_transfer || config.combotrx || config.trx || config.commission_exchange || config.client_config)) ||
         (activeTab === 'produk_poin' && (config.history || config.poin)) ||
         (activeTab === 'outbox_patterns' && config.outbox_patterns) ||
         (activeTab === 'cutoff' && cutoffConfig) ||
@@ -149,7 +158,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
       if (!currentTabHasConfig) {
         // Set to first available tab
         if (appRules) setActiveTab('priority_settings');
-        else if (config.balance_transfer || config.combotrx || config.commission_exchange) setActiveTab('transfer_transaksi');
+        else if (config.balance_transfer || config.combotrx || config.trx || config.commission_exchange || config.client_config) setActiveTab('transfer_transaksi');
         else if (config.history || config.poin) setActiveTab('produk_poin');
         else if (config.outbox_patterns) setActiveTab('outbox_patterns');
         else if (cutoffConfig) setActiveTab('cutoff');
@@ -276,6 +285,18 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
           ...prev.cors_config, 
           [field]: value 
         } as SecurityConfig['cors_config'];
+      } else if (section === 'trx' && newConfig.trx) {
+        newConfig.trx = { 
+          ...prev.trx!, 
+          [field]: value 
+        };
+      } else if (section === 'client_config' && newConfig.client_config) {
+        if (field === 'blocked_referrals') {
+          newConfig.client_config = { 
+            ...prev.client_config!, 
+            blocked_referrals: Array.isArray(value) ? value : [] 
+          };
+        }
       } else if (section === 'outbox_patterns' && newConfig.outbox_patterns && prev.outbox_patterns) {
         if (field.startsWith('static_')) {
           const staticField = field.replace('static_', '') as keyof NonNullable<SecurityConfig['outbox_patterns']>['static_patterns'];
@@ -1318,6 +1339,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                             outbox_like_pattern: "%{product}.{destination}%Sukses%",
                             pesan_format_no_val: "{trxid}.{product}.{destination}.{pin}",
                             pesan_format_with_val: "{trxid}.{product}.{destination}.{val}.{pin}",
+                            combo_code_format: "{trxid}.{combo_code}.{product}.{destination}.{pin}",
                             sdh_pernah_filter: "%sdh pernah%"
                           }
                         }));
@@ -1396,6 +1418,180 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                         Pola untuk memfilter pesan yang sudah diproses.
                       </p>
                     </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Format Combo Code
+                      </label>
+                      <input
+                        type="text"
+                        value={config.combotrx.combo_code_format || ''}
+                        onChange={(e) => updateConfig('combotrx', 'combo_code_format', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="{trxid}.{combo_code}.{product}.{destination}.{pin}"
+                      />
+                      <p className="text-sm text-gray-500 mt-1">
+                        Format untuk pesan dengan combo code. Gunakan {`{trxid}`}, {`{combo_code}`}, {`{product}`}, {`{destination}`}, {`{pin}`} sebagai placeholder.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Trx Configuration */}
+              <div>
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="h-6 w-6 bg-indigo-100 rounded-full flex items-center justify-center">
+                    <span className="text-indigo-600 font-bold text-sm">TRX</span>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Transaksi</h3>
+                </div>
+
+                {!config.trx && (
+                  <div className="mb-4">
+                    <button
+                      onClick={() => {
+                        setConfig(prev => ({
+                          ...prev!,
+                          trx: {
+                            pesan_format_no_val: "{trxid}.{product}.{destination}.{pin}",
+                            pesan_format_with_val_nonzero: "{trxid}.{product}.{destination}.{val}.{pin}",
+                            pesan_format_with_val_zero: "{product}.{destination}.{pin}.{val}"
+                          }
+                        }));
+                      }}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+                    >
+                      Aktifkan Konfigurasi Transaksi
+                    </button>
+                  </div>
+                )}
+
+                {config.trx && (
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Format Pesan (Tanpa Nilai)
+                      </label>
+                      <input
+                        type="text"
+                        value={config.trx.pesan_format_no_val}
+                        onChange={(e) => updateConfig('trx', 'pesan_format_no_val', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="{trxid}.{product}.{destination}.{pin}"
+                      />
+                      <p className="text-sm text-gray-500 mt-1">
+                        Format untuk pesan tanpa nilai. Gunakan {`{trxid}`}, {`{product}`}, {`{destination}`}, {`{pin}`} sebagai placeholder.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Format Pesan (Dengan Nilai Non-Zero)
+                        </label>
+                        <input
+                          type="text"
+                          value={config.trx.pesan_format_with_val_nonzero}
+                          onChange={(e) => updateConfig('trx', 'pesan_format_with_val_nonzero', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="{trxid}.{product}.{destination}.{val}.{pin}"
+                        />
+                        <p className="text-sm text-gray-500 mt-1">
+                          Format untuk pesan dengan nilai non-zero. Gunakan {`{trxid}`}, {`{product}`}, {`{destination}`}, {`{val}`}, {`{pin}`} sebagai placeholder.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Format Pesan (Dengan Nilai Zero)
+                        </label>
+                        <input
+                          type="text"
+                          value={config.trx.pesan_format_with_val_zero}
+                          onChange={(e) => updateConfig('trx', 'pesan_format_with_val_zero', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="{product}.{destination}.{pin}.{val}"
+                        />
+                        <p className="text-sm text-gray-500 mt-1">
+                          Format untuk pesan dengan nilai zero. Gunakan {`{product}`}, {`{destination}`}, {`{pin}`}, {`{val}`} sebagai placeholder.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Client Config Configuration */}
+              <div>
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="h-6 w-6 bg-red-100 rounded-full flex items-center justify-center">
+                    <span className="text-red-600 font-bold text-sm">CC</span>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Klien</h3>
+                </div>
+
+                {!config.client_config && (
+                  <div className="mb-4">
+                    <button
+                      onClick={() => {
+                        setConfig(prev => ({
+                          ...prev!,
+                          client_config: {
+                            blocked_referrals: []
+                          }
+                        }));
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                    >
+                      Aktifkan Konfigurasi Klien
+                    </button>
+                  </div>
+                )}
+
+                {config.client_config && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Daftar Referral yang Diblokir
+                    </label>
+                    <div className="space-y-2">
+                      {config.client_config.blocked_referrals.map((referral, index) => (
+                        <div key={index} className="flex items-center space-x-2">
+                          <input
+                            type="text"
+                            value={referral}
+                            onChange={(e) => {
+                              const newBlocked = [...config.client_config!.blocked_referrals];
+                              newBlocked[index] = e.target.value;
+                              updateConfig('client_config', 'blocked_referrals', newBlocked);
+                            }}
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Kode referral yang diblokir"
+                          />
+                          <button
+                            onClick={() => {
+                              const newBlocked = config.client_config!.blocked_referrals.filter((_, i) => i !== index);
+                              updateConfig('client_config', 'blocked_referrals', newBlocked);
+                            }}
+                            className="px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-sm"
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => {
+                          const newBlocked = [...(config.client_config?.blocked_referrals || []), ''];
+                          updateConfig('client_config', 'blocked_referrals', newBlocked);
+                        }}
+                        className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors text-sm"
+                      >
+                        + Tambah Referral yang Diblokir
+                      </button>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Daftar kode referral yang dilarang digunakan untuk registrasi.
+                    </p>
                   </div>
                 )}
               </div>
