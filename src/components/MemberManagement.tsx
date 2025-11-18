@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
+import { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   Search, 
@@ -6,13 +6,13 @@ import {
   MapPin,
   CheckCircle,
   XCircle,
-  RefreshCw,
   Clock,
   AlertCircle
 } from 'lucide-react';
 import { getApiUrl, X_TOKEN_VALUE } from '../config/api';
 import { Spinner } from '../styles';
 import VerificationImage from './VerificationImage';
+import { getCachedMembers, setCachedMembers, updateCachedMembers, mergeMembers } from '../utils/memberCache';
 
 interface Member {
   kode: string;
@@ -115,7 +115,6 @@ export interface MemberManagementRef {
 
 const MemberManagement = forwardRef<MemberManagementRef, MemberManagementProps>(({ authSeed, onStatsChange }, ref) => {
   const [members, setMembers] = useState<Member[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [levelFilter, setLevelFilter] = useState('');
@@ -140,6 +139,83 @@ const MemberManagement = forwardRef<MemberManagementRef, MemberManagementProps>(
   const [addingToAdmin, setAddingToAdmin] = useState<string | null>(null);
 
   const limit = 10;
+
+  const fetchMembers = async (isLoadMore = false, background = false) => {
+    if (!background) {
+      setIsLoadingMore(isLoadMore);
+    }
+    
+    try {
+      const sessionKey = localStorage.getItem('adminSessionKey');
+      if (!sessionKey) {
+        setMessage('Kunci sesi tidak ditemukan. Silakan login lagi.');
+        return;
+      }
+
+      const filters = {
+        searchTerm,
+        statusFilter,
+        levelFilter,
+        verificationFilter,
+      };
+
+      const params = new URLSearchParams({
+        limit: limit.toString(),
+        ...(searchTerm && { search: searchTerm }),
+        ...(statusFilter !== 'all' && { status: statusFilter }),
+        ...(levelFilter && { level: levelFilter }),
+        ...(verificationFilter !== 'all' && { verification: verificationFilter }),
+        ...(nextCursor && nextCursor.trim() !== '' && { cursor: nextCursor }),
+      });
+
+      const apiUrl = await getApiUrl(`/members?${params}`);
+      const response = await fetch(apiUrl, {
+        headers: {
+          'X-Token': X_TOKEN_VALUE,
+          'Session-Key': sessionKey,
+          'Auth-Seed': authSeed,
+        },
+      });
+
+      const data: MemberListResponse = await response.json();
+
+      if (data.success) {
+        // Update cache
+        if (isLoadMore) {
+          updateCachedMembers(filters, data.members, data.total, data.has_more, data.next_cursor, true);
+        } else {
+          setCachedMembers(filters, data);
+        }
+
+        // Merge/update members without rebuilding components
+        if (isLoadMore) {
+          setMembers(prev => {
+            const merged = mergeMembers(prev, data.members, true);
+            return merged;
+          });
+        } else {
+          setMembers(prev => {
+            // Merge existing with new to preserve component state
+            const merged = mergeMembers(prev, data.members, false);
+            return merged;
+          });
+        }
+        
+        setHasMore(data.has_more);
+        setNextCursor(data.next_cursor);
+        setTotalMembers(data.total);
+      } else {
+        setMessage(data.message);
+      }
+    } catch (error) {
+      console.error('Failed to fetch members:', error);
+      if (!background) {
+        setMessage('Gagal memuat member');
+      }
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
 
   // Expose stats and refresh function to parent
   useImperativeHandle(ref, () => ({
@@ -181,97 +257,59 @@ const MemberManagement = forwardRef<MemberManagementRef, MemberManagementProps>(
   useEffect(() => {
     // Fetch current admin info when component loads
     fetchCurrentAdminInfo();
+    
+    // Load from cache immediately on mount
+    const filters = {
+      searchTerm: '',
+      statusFilter: 'all',
+      levelFilter: '',
+      verificationFilter: 'all',
+    };
+    
+    const cached = getCachedMembers(filters);
+    if (cached && cached.success) {
+      setMembers(cached.members);
+      setTotalMembers(cached.total);
+      setHasMore(cached.has_more);
+      setNextCursor(cached.next_cursor);
+    }
+    
+    // Fetch fresh data in background
+    fetchMembers(false, true);
   }, []);
 
   useEffect(() => {
-    // Reset cursor when filters change to start fresh
-    setNextCursor(undefined);
+    // Load from cache immediately
+    const filters = {
+      searchTerm,
+      statusFilter,
+      levelFilter,
+      verificationFilter,
+    };
+    
+    const cached = getCachedMembers(filters);
+    if (cached && cached.success) {
+      setMembers(cached.members);
+      setTotalMembers(cached.total);
+      setHasMore(cached.has_more);
+      setNextCursor(cached.next_cursor);
+    } else {
+      // Reset cursor when filters change and no cache available
+      setNextCursor(undefined);
+    }
     
     // Add a small delay for search term to prevent too many API calls
     const timeoutId = setTimeout(() => {
-      fetchMembers();
+      // Reset cursor before fetching fresh data
+      setNextCursor(undefined);
+      fetchMembers(false, true);
     }, searchTerm ? 300 : 0); // 300ms delay only for search term changes
     
     return () => clearTimeout(timeoutId);
   }, [searchTerm, statusFilter, levelFilter, verificationFilter]);
 
   const handleLoadMore = () => {
-    fetchMembers(true);
-  };
-
-  const fetchMembers = async (isLoadMore = false) => {
-    setLoading(true);
-    setIsLoadingMore(isLoadMore);
-    try {
-      const sessionKey = localStorage.getItem('adminSessionKey');
-      if (!sessionKey) {
-        setMessage('Kunci sesi tidak ditemukan. Silakan login lagi.');
-        return;
-      }
-
-      const params = new URLSearchParams({
-        limit: limit.toString(),
-        ...(searchTerm && { search: searchTerm }),
-        ...(statusFilter !== 'all' && { status: statusFilter }),
-        ...(levelFilter && { level: levelFilter }),
-        ...(verificationFilter !== 'all' && { verification: verificationFilter }),
-        ...(nextCursor && nextCursor.trim() !== '' && { cursor: nextCursor }),
-      });
-
-      // Debug logging
-      console.log('Fetching members with params:', {
-        searchTerm,
-        statusFilter,
-        levelFilter,
-        verificationFilter,
-        nextCursor,
-        isLoadMore,
-        params: params.toString()
-      });
-      console.log('Verification filter value:', verificationFilter);
-
-      const apiUrl = await getApiUrl(`/members?${params}`);
-      const response = await fetch(apiUrl, {
-        headers: {
-          'X-Token': X_TOKEN_VALUE,
-          'Session-Key': sessionKey,
-          'Auth-Seed': authSeed,
-        },
-      });
-
-      const data: MemberListResponse = await response.json();
-
-      // Debug logging
-      console.log('Members response:', {
-        success: data.success,
-        message: data.message,
-        membersCount: data.members?.length || 0,
-        total: data.total,
-        hasMore: data.has_more,
-        nextCursor: data.next_cursor
-      });
-
-      if (data.success) {
-        // If this is a "Load More" operation, append to existing members
-        // Otherwise, replace members (new search/filter)
-        if (isLoadMore) {
-          setMembers(prev => [...prev, ...data.members]);
-        } else {
-          setMembers(data.members);
-        }
-        setHasMore(data.has_more);
-        setNextCursor(data.next_cursor);
-        setTotalMembers(data.total);
-      } else {
-        setMessage(data.message);
-      }
-    } catch (error) {
-      console.error('Failed to fetch members:', error);
-      setMessage('Gagal memuat member');
-    } finally {
-      setLoading(false);
-      setIsLoadingMore(false);
-    }
+    fetchMembers(true, false);
   };
 
   const fetchCurrentAdminInfo = async () => {
@@ -659,16 +697,7 @@ const MemberManagement = forwardRef<MemberManagementRef, MemberManagementProps>(
 
       {/* Members Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        {loading && !isLoadingMore ? (
-          <div className="p-8 text-center">
-            <div className="mx-auto mb-4">
-              <Spinner size="lg" color="primary" />
-            </div>
-            <p className="text-gray-600">Memuat member...</p>
-          </div>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
+        <div className="overflow-x-auto">
               <table className="w-full table-fixed divide-y divide-gray-200" style={{ minWidth: '1000px' }}>
                 <thead className="bg-gray-50">
                   <tr>
@@ -801,9 +830,7 @@ const MemberManagement = forwardRef<MemberManagementRef, MemberManagementProps>(
                 </button>
               </div>
             )}
-          </>
-        )}
-      </div>
+        </div>
 
       {/* Enhanced Member Detail Modal */}
       {showDetailModal && selectedMember && enhancedMemberDetail && createPortal(

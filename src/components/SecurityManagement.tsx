@@ -153,7 +153,6 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
         // Only switch to other tabs if priority_settings is not available
         if (config.balance_transfer || config.trx || config.commission_exchange) setActiveTab('transfer_transaksi');
         else if (config.client_config) setActiveTab('client_config');
-        else if (config.history || config.poin) setActiveTab('produk_poin');
         else if (config.outbox_patterns || config.combotrx) setActiveTab('outbox_patterns');
       }
     }
@@ -662,6 +661,11 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
       return 'time';
     }
     
+    // Special handling for history and poin fields
+    if (key === 'minimum_harga_to_display_in_history' || key === 'exchange_rate' || key === 'minimum_exchange') {
+      return 'number';
+    }
+    
     // Special handling for dynamic rules based on prefix
     if (key.startsWith('newUserMarkup')) {
       return 'number';
@@ -700,7 +704,10 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
       'liveChatHelpFormat': 'Format Pesan Bantuan Live Chat',
       'cutoff_start': 'Waktu Mulai Cutoff',
       'cutoff_end': 'Waktu Selesai Cutoff',
-      'demo_number': 'Nomor Pengirim Demo'
+      'demo_number': 'Nomor Pengirim Demo',
+      'minimum_harga_to_display_in_history': 'Minimum Harga untuk Ditampilkan di Riwayat',
+      'exchange_rate': 'Kurs Tukar Poin',
+      'minimum_exchange': 'Jumlah Tukar Minimum Poin'
     };
 
     // Return specific label for priority settings
@@ -757,7 +764,10 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
       'liveChatHelpFormat': 'Format pesan untuk live chat bantuan transaksi. Gunakan placeholder: {inv} (ID transaksi), {product} (kode produk), {number} (nomor tujuan), {tgl_entri} (tanggal entri)',
       'cutoff_start': 'Waktu ketika sistem mulai periode cutoff (format 24 jam, contoh: 23:45)',
       'cutoff_end': 'Waktu ketika sistem mengakhiri periode cutoff (format 24 jam, contoh: 00:15)',
-      'demo_number': 'Nomor demo yang akan di-normalisasi otomatis dan digunakan untuk bypass OTP saat login. Kosongkan untuk menonaktifkan. Pastikan akun demo sudah dibuat menggunakan nomor ini.'
+      'demo_number': 'Nomor demo yang akan di-normalisasi otomatis dan digunakan untuk bypass OTP saat login. Kosongkan untuk menonaktifkan. Pastikan akun demo sudah dibuat menggunakan nomor ini.',
+      'minimum_harga_to_display_in_history': 'Ambang batas harga minimum untuk menampilkan transaksi di riwayat. Hanya transaksi di atas jumlah ini yang akan ditampilkan.',
+      'exchange_rate': 'Kurs tukar untuk mengkonversi poin ke mata uang.',
+      'minimum_exchange': 'Jumlah minimum yang diperlukan untuk tukar poin. Kosongkan untuk menonaktifkan minimum.'
     };
 
     // Return specific description for priority settings
@@ -939,15 +949,13 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
     );
   };
 
-  // Component for demo number row to handle save on blur
+  // Component for demo number row
   const DemoNumberRow = ({
     demoNumber,
-    onUpdate,
-    onSave
+    onUpdate
   }: {
     demoNumber: string;
     onUpdate: (value: string) => void;
-    onSave: (value: string) => Promise<void>;
   }) => {
     const [localValue, setLocalValue] = useState(demoNumber);
     const [isFocused, setIsFocused] = useState(false);
@@ -1004,10 +1012,9 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
             onChange={(e) => {
               setLocalValue(e.target.value);
             }}
-            onBlur={async () => {
+            onBlur={() => {
               setIsFocused(false);
               onUpdate(localValue);
-              await onSave(localValue);
             }}
             className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
             placeholder="contoh: 085156880420"
@@ -1173,8 +1180,24 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
           ) : type === 'number' ? (
             <input
               type="number"
-              value={value || ''}
-              onChange={(e) => updateFn(key, parseInt(e.target.value) || 0)}
+              step={key === 'exchange_rate' || key === 'minimum_exchange' || key === 'minimum_harga_to_display_in_history' ? '0.01' : '1'}
+              value={value ?? ''}
+              onChange={(e) => {
+                const inputValue = e.target.value;
+                if (inputValue === '') {
+                  // For optional fields like minimum_exchange, pass empty string to allow undefined
+                  if (key === 'minimum_exchange') {
+                    updateFn(key, '');
+                  } else {
+                    updateFn(key, 0);
+                  }
+                } else {
+                  const numValue = key === 'exchange_rate' || key === 'minimum_exchange' || key === 'minimum_harga_to_display_in_history' 
+                    ? parseFloat(inputValue) 
+                    : parseInt(inputValue);
+                  updateFn(key, isNaN(numValue) ? 0 : numValue);
+                }
+              }}
               className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
           ) : type === 'time' ? (
@@ -1498,16 +1521,6 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
               Blokir Referral
             </button>
             <button
-              onClick={() => setActiveTab('produk_poin')}
-              className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-                activeTab === 'produk_poin'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Produk & Poin
-            </button>
-            <button
               onClick={() => setActiveTab('outbox_patterns')}
               className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
                 activeTab === 'outbox_patterns'
@@ -1646,6 +1659,120 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                 </div>
               )}
 
+              {/* History Configuration Section */}
+              <div>
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="h-6 w-6 bg-purple-100 rounded-full flex items-center justify-center">
+                    <span className="text-purple-600 font-bold text-sm">H</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Riwayat</h3>
+                    <p className="text-sm text-gray-600">Konfigurasi pengaturan riwayat transaksi</p>
+                  </div>
+                </div>
+
+                {!config.history && (
+                  <div className="mb-4">
+                    <button
+                      onClick={() => {
+                        setConfig(prev => ({
+                          ...prev!,
+                          history: {
+                            minimum_harga_to_display_in_history: 1
+                          }
+                        }));
+                      }}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
+                    >
+                      Aktifkan Konfigurasi Riwayat
+                    </button>
+                  </div>
+                )}
+
+                {config.history && (
+                  <div className="border border-gray-200 rounded-lg p-4">
+                    <div className="mb-3 pb-2 border-b border-gray-200">
+                      <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
+                        <div className="flex-shrink-0 w-1/5">Key</div>
+                        <div className="flex-shrink-0 text-gray-400">|</div>
+                        <div className="flex-shrink-0 w-1/5">Name</div>
+                        <div className="flex-shrink-0 text-gray-400">|</div>
+                        <div className="flex-1 min-w-0">Descriptions</div>
+                        <div className="flex-shrink-0 text-gray-400">|</div>
+                        <div className="flex-shrink-0 w-1/5">Value</div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {renderPrioritySettingsRow(
+                        'minimum_harga_to_display_in_history',
+                        config.history.minimum_harga_to_display_in_history,
+                        (_key, value) => updateConfig('history', 'minimum_harga_to_display_in_history', value)
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Poin Configuration Section */}
+              <div>
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="h-6 w-6 bg-yellow-100 rounded-full flex items-center justify-center">
+                    <span className="text-yellow-600 font-bold text-sm">P</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Poin</h3>
+                    <p className="text-sm text-gray-600">Konfigurasi pengaturan tukar poin</p>
+                  </div>
+                </div>
+
+                {!config.poin && (
+                  <div className="mb-4">
+                    <button
+                      onClick={() => {
+                        setConfig(prev => ({
+                          ...prev!,
+                          poin: {
+                            exchange_rate: 4.0,
+                            minimum_exchange: 500.0
+                          }
+                        }));
+                      }}
+                      className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition-colors"
+                    >
+                      Aktifkan Konfigurasi Poin
+                    </button>
+                  </div>
+                )}
+
+                {config.poin && (
+                  <div className="border border-gray-200 rounded-lg p-4">
+                    <div className="mb-3 pb-2 border-b border-gray-200">
+                      <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
+                        <div className="flex-shrink-0 w-1/5">Key</div>
+                        <div className="flex-shrink-0 text-gray-400">|</div>
+                        <div className="flex-shrink-0 w-1/5">Name</div>
+                        <div className="flex-shrink-0 text-gray-400">|</div>
+                        <div className="flex-1 min-w-0">Descriptions</div>
+                        <div className="flex-shrink-0 text-gray-400">|</div>
+                        <div className="flex-shrink-0 w-1/5">Value</div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {renderPrioritySettingsRow(
+                        'exchange_rate',
+                        config.poin.exchange_rate,
+                        (_key, value) => updateConfig('poin', 'exchange_rate', value)
+                      )}
+                      {renderPrioritySettingsRow(
+                        'minimum_exchange',
+                        config.poin.minimum_exchange ?? '',
+                        (_key, value) => updateConfig('poin', 'minimum_exchange', value === '' ? undefined : (typeof value === 'number' ? value : parseFloat(String(value)) || undefined))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Demo Number Configuration Section */}
               <div>
                 <div className="flex items-center space-x-3 mb-4">
@@ -1680,35 +1807,6 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                       <DemoNumberRow
                         demoNumber={demoNumber || ''}
                         onUpdate={(value) => setDemoNumber(value)}
-                        onSave={async (value) => {
-                          try {
-                            const sessionKey = localStorage.getItem('adminSessionKey');
-                            if (!sessionKey) {
-                              setMessage({ type: 'error', text: 'Session key not found. Please login again.' });
-                              return;
-                            }
-                            const apiUrl = await getApiUrl('/admin/demo-config/save');
-                            const res = await fetch(apiUrl, {
-                              method: 'POST',
-                              headers: {
-                                'Content-Type': 'application/json',
-                                'X-Token': X_TOKEN_VALUE,
-                                'Session-Key': sessionKey,
-                                'Auth-Seed': authSeed,
-                              },
-                              body: JSON.stringify({ demo_number: value || '' }),
-                            });
-                            const data = await res.json();
-                            if (res.ok && data.success) {
-                              setMessage({ type: 'success', text: 'Demo number saved' });
-                              loadDemoNumber();
-                            } else {
-                              setMessage({ type: 'error', text: data.message || 'Failed to save demo number' });
-                            }
-                          } catch (e) {
-                            setMessage({ type: 'error', text: 'Network error saving demo number' });
-                          }
-                        }}
                       />
                     </div>
                   </div>
@@ -1978,127 +2076,6 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
             </div>
           )}
 
-          {/* Produk & Poin Tab */}
-          {activeTab === 'produk_poin' && (
-            <div className="space-y-6">
-              {/* History Configuration */}
-              <div>
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className="h-6 w-6 bg-purple-100 rounded-full flex items-center justify-center">
-                    <span className="text-purple-600 font-bold text-sm">H</span>
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Riwayat</h3>
-                </div>
-
-                {!config.history && (
-                  <div className="mb-4">
-                    <button
-                      onClick={() => {
-                        setConfig(prev => ({
-                          ...prev!,
-                          history: {
-                            minimum_harga_to_display_in_history: 1
-                          }
-                        }));
-                      }}
-                      className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
-                    >
-                      Aktifkan Konfigurasi Riwayat
-                    </button>
-                  </div>
-                )}
-
-                {config.history && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Harga Minimum untuk Ditampilkan di Riwayat
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={config.history.minimum_harga_to_display_in_history}
-                      onChange={(e) => updateConfig('history', 'minimum_harga_to_display_in_history', parseFloat(e.target.value) || 0)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="1"
-                    />
-                    <p className="text-sm text-gray-500 mt-1">
-                      Ambang batas harga minimum untuk menampilkan transaksi di riwayat. Hanya transaksi di atas jumlah ini yang akan ditampilkan.
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Poin Configuration */}
-              <div>
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className="h-6 w-6 bg-yellow-100 rounded-full flex items-center justify-center">
-                    <span className="text-yellow-600 font-bold text-sm">P</span>
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Poin</h3>
-                </div>
-
-                {!config.poin && (
-                  <div className="mb-4">
-                    <button
-                      onClick={() => {
-                        setConfig(prev => ({
-                          ...prev!,
-                          poin: {
-                            exchange_rate: 4.0,
-                            minimum_exchange: 500.0
-                          }
-                        }));
-                      }}
-                      className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition-colors"
-                    >
-                      Aktifkan Konfigurasi Poin
-                    </button>
-                  </div>
-                )}
-
-                {config.poin && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Kurs Tukar
-                      </label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        value={config.poin.exchange_rate}
-                        onChange={(e) => updateConfig('poin', 'exchange_rate', parseFloat(e.target.value) || 0)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="4.0"
-                      />
-                      <p className="text-sm text-gray-500 mt-1">
-                        Kurs tukar untuk mengkonversi poin ke mata uang.
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Jumlah Tukar Minimum
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={config.poin.minimum_exchange || ''}
-                        onChange={(e) => updateConfig('poin', 'minimum_exchange', e.target.value ? parseFloat(e.target.value) : undefined)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="500.0"
-                      />
-                      <p className="text-sm text-gray-500 mt-1">
-                        Jumlah minimum yang diperlukan untuk tukar poin. Kosongkan untuk menonaktifkan minimum.
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* Outbox Patterns Tab */}
           {activeTab === 'outbox_patterns' && (

@@ -52,6 +52,7 @@ import ReleasePrep from "./ReleasePrep";
 import ChatManagement, { ChatManagementRef } from "./ChatManagement";
 import SessionManager, { SessionManagerRef } from "./SessionManager";
 import { formatJSONForExport, formatJSONForAPI } from "../utils/jsonFormatter";
+import { preloadMembers } from "../utils/memberCache";
 
 interface AdminDashboardProps {
   authSeed: string;
@@ -243,6 +244,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     fetchCurrentAdminInfo();
     loadAvailableMenus();
     loadChatLicenseStatus();
+    // Preload member data for cache-first pattern
+    preloadMembers(authSeed, {
+      searchTerm: '',
+      statusFilter: 'all',
+      levelFilter: '',
+      verificationFilter: 'all',
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
