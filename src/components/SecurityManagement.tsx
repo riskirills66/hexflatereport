@@ -1,5 +1,5 @@
-import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { Shield, AlertTriangle, CheckCircle, Settings, ToggleLeft, ToggleRight, Clock, Info } from 'lucide-react';
+import { useState, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
+import { Shield, AlertTriangle, CheckCircle, Settings, ToggleLeft, ToggleRight, Clock } from 'lucide-react';
 import { getApiUrl, X_TOKEN_VALUE } from '../config/api';
 
 interface SecurityManagementProps {
@@ -35,8 +35,6 @@ interface SecurityConfig {
   };
   combotrx?: {
     outbox_like_pattern: string;
-    pesan_format_no_val: string;
-    pesan_format_with_val: string;
     sdh_pernah_filter: string;
   };
   trx?: {
@@ -118,6 +116,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
   
   // Tab state
   const [activeTab, setActiveTab] = useState<string>('priority_settings');
+  const hasInitializedTab = useRef(false);
 
   useEffect(() => {
     fetchCurrentAdminInfo();
@@ -143,29 +142,22 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
     }
   }, [config?.outbox_patterns?.dynamic_patterns, dynamicPatternOrder.length]);
 
-  // Set initial active tab to first available config when loading completes
+  // Set initial active tab to priority_settings when loading completes
   useEffect(() => {
-    if (!loading && config) {
-      // Only set if current tab's config doesn't exist
-      const currentTabHasConfig = 
-        (activeTab === 'priority_settings' && appRules) ||
-        (activeTab === 'transfer_transaksi' && (config.balance_transfer || config.combotrx || config.trx || config.commission_exchange || config.client_config)) ||
-        (activeTab === 'produk_poin' && (config.history || config.poin)) ||
-        (activeTab === 'outbox_patterns' && config.outbox_patterns) ||
-        (activeTab === 'cutoff' && cutoffConfig) ||
-        (activeTab === 'demo_number' && demoNumber !== null);
-
-      if (!currentTabHasConfig) {
-        // Set to first available tab
-        if (appRules) setActiveTab('priority_settings');
-        else if (config.balance_transfer || config.combotrx || config.trx || config.commission_exchange || config.client_config) setActiveTab('transfer_transaksi');
+    if (!loading && !hasInitializedTab.current) {
+      hasInitializedTab.current = true;
+      // Always default to priority_settings if appRules is available
+      if (appRules) {
+        setActiveTab('priority_settings');
+      } else if (config) {
+        // Only switch to other tabs if priority_settings is not available
+        if (config.balance_transfer || config.trx || config.commission_exchange) setActiveTab('transfer_transaksi');
+        else if (config.client_config) setActiveTab('client_config');
         else if (config.history || config.poin) setActiveTab('produk_poin');
-        else if (config.outbox_patterns) setActiveTab('outbox_patterns');
-        else if (cutoffConfig) setActiveTab('cutoff');
-        else if (demoNumber !== null) setActiveTab('demo_number');
+        else if (config.outbox_patterns || config.combotrx) setActiveTab('outbox_patterns');
       }
     }
-  }, [loading, config, appRules, cutoffConfig, demoNumber, activeTab]);
+  }, [loading, config, appRules]);
 
 
   const fetchCurrentAdminInfo = async () => {
@@ -661,9 +653,14 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
   ];
 
   // Dynamic field type detection and rendering
-  const getFieldType = (key: string, value: any): 'boolean' | 'number' | 'string' => {
+  const getFieldType = (key: string, value: any): 'boolean' | 'number' | 'string' | 'time' => {
     if (typeof value === 'boolean') return 'boolean';
     if (typeof value === 'number') return 'number';
+    
+    // Special handling for cutoff fields
+    if (key === 'cutoff_start' || key === 'cutoff_end') {
+      return 'time';
+    }
     
     // Special handling for dynamic rules based on prefix
     if (key.startsWith('newUserMarkup')) {
@@ -700,7 +697,10 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
       'permissionIntroFeatureEnabled': 'Izin Aplikasi Pertama Login',
       'whatsappHelp': 'Aktifkan Bantuan WhatsApp',
       'whatsappHelpFormat': 'Format URL Bantuan WhatsApp',
-      'liveChatHelpFormat': 'Format Pesan Bantuan Live Chat'
+      'liveChatHelpFormat': 'Format Pesan Bantuan Live Chat',
+      'cutoff_start': 'Waktu Mulai Cutoff',
+      'cutoff_end': 'Waktu Selesai Cutoff',
+      'demo_number': 'Nomor Pengirim Demo'
     };
 
     // Return specific label for priority settings
@@ -754,7 +754,10 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
       'permissionIntroFeatureEnabled': 'Munculkan Izin Aplikasi Saat Pertama Kali Login',
       'whatsappHelp': 'Jika aktif, tombol bantuan di detail transaksi akan mengarah ke WhatsApp. Jika tidak aktif, akan menggunakan live chat di aplikasi',
       'whatsappHelpFormat': 'Format URL WhatsApp untuk bantuan transaksi. Gunakan placeholder: {inv} (ID transaksi), {product} (kode produk), {number} (nomor tujuan), {tgl_entri} (tanggal entri)',
-      'liveChatHelpFormat': 'Format pesan untuk live chat bantuan transaksi. Gunakan placeholder: {inv} (ID transaksi), {product} (kode produk), {number} (nomor tujuan), {tgl_entri} (tanggal entri)'
+      'liveChatHelpFormat': 'Format pesan untuk live chat bantuan transaksi. Gunakan placeholder: {inv} (ID transaksi), {product} (kode produk), {number} (nomor tujuan), {tgl_entri} (tanggal entri)',
+      'cutoff_start': 'Waktu ketika sistem mulai periode cutoff (format 24 jam, contoh: 23:45)',
+      'cutoff_end': 'Waktu ketika sistem mengakhiri periode cutoff (format 24 jam, contoh: 00:15)',
+      'demo_number': 'Nomor demo yang akan di-normalisasi otomatis dan digunakan untuk bypass OTP saat login. Kosongkan untuk menonaktifkan. Pastikan akun demo sudah dibuat menggunakan nomor ini.'
     };
 
     // Return specific description for priority settings
@@ -787,144 +790,423 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
     }
   };
 
-  const renderField = (key: string, value: any) => {
-    const type = getFieldType(key, value);
-    const label = getFieldLabel(key);
-    const description = getFieldDescription(key, value);
 
-    if (type === 'boolean') {
-      return (
-        <div key={key} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
-          <div className="flex-1">
-            <h3 className="text-sm font-medium text-gray-900">{label}</h3>
-            <p className="text-xs text-gray-600 mt-0.5">{description}</p>
-            <p className="text-xs text-gray-500 mt-0.5 font-mono">{key}</p>
-          </div>
-          <button
-            onClick={() => updateRule(key, !value)}
-            className="ml-4 flex items-center"
-          >
-            {value ? (
-              <ToggleRight className="h-6 w-6 text-green-600" />
-            ) : (
-              <ToggleLeft className="h-6 w-6 text-gray-400" />
-            )}
-          </button>
-        </div>
-      );
-    } else if (type === 'number') {
-      return (
-        <div key={key} className="p-3 bg-white rounded-lg border border-gray-200">
-          <label className="block">
-            <h3 className="text-sm font-medium text-gray-900">{label}</h3>
-            <p className="text-xs text-gray-600 mt-0.5">{description}</p>
-            <p className="text-xs text-gray-500 mt-0.5 font-mono">{key}</p>
-            <input
-              type="number"
-              value={value || ''}
-              onChange={(e) => updateRule(key, parseInt(e.target.value) || 0)}
-              className="mt-1.5 w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
-          </label>
-        </div>
-      );
-    } else {
-      const isLongText = String(value).length > 50;
-      return (
-        <div key={key} className="p-3 bg-white rounded-lg border border-gray-200">
-          <label className="block">
-            <h3 className="text-sm font-medium text-gray-900">{label}</h3>
-            <p className="text-xs text-gray-600 mt-0.5">{description}</p>
-            <p className="text-xs text-gray-500 mt-0.5 font-mono">{key}</p>
-            {isLongText ? (
-              <textarea
-                value={value || ''}
-                onChange={(e) => updateRule(key, e.target.value)}
-                rows={2}
-                className="mt-1.5 w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              />
-            ) : (
-              <input
-                type="text"
-                value={value || ''}
-                onChange={(e) => updateRule(key, e.target.value)}
-                className="mt-1.5 w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              />
-            )}
-          </label>
-        </div>
-      );
-    }
+  // Helper function to get field description for transfer & transaksi configs
+  const getTransferTransaksiDescription = (section: string, field: string): string => {
+    const descriptions: Record<string, Record<string, string>> = {
+      balance_transfer: {
+        add_format: 'Format untuk menambah saldo. Gunakan {destination}, {val}, {pin} sebagai placeholder.',
+        trans_format: 'Format untuk mentransfer saldo. Gunakan {destination}, {val}, {pin} sebagai placeholder.',
+      },
+      combotrx: {
+        outbox_like_pattern: 'Pola untuk mencocokkan pesan outbox untuk mengambil list paket combo. Gunakan {product}, {destination} sebagai placeholder dan \'%\' sebagai delimiter.',
+        sdh_pernah_filter: 'Pola untuk memfilter pesan sudah diproses untuk diabaikan saat mengambil list paket combo. Gunakan \'%\' sebagai delimiter.',
+      },
+      trx: {
+        pesan_format_no_val: 'Format untuk transaksi reguler. Gunakan {trxid}, {product}, {destination}, {pin} sebagai placeholder.',
+        pesan_format_with_val_nonzero: 'Format untuk transaksi nominal bebas. Gunakan {trxid}, {product}, {destination}, {val}, {pin} sebagai placeholder.',
+        pesan_format_with_val_zero: 'Format untuk transaksi dengan prefix 0 (contoh: 081234567890(end user number)). Gunakan {product}, {destination}, {pin}, {val} sebagai end user number sebagai placeholder.',
+        combo_code_format: 'Format transaksi untuk transaksi paket combo (Combo Sakti, Cuanku, dll). Gunakan {trxid}, {combo_code}, {product}, {destination}, {pin} sebagai placeholder.',
+      },
+      commission_exchange: {
+        tukar_format: 'Format untuk tukar komisi. Gunakan {val}, {pin} sebagai placeholder.',
+      },
+    };
+    return descriptions[section]?.[field] || '';
   };
 
-  const renderDynamicField = (key: string, value: any) => {
+  // Helper function to get field label for transfer & transaksi configs
+  const getTransferTransaksiLabel = (section: string, field: string): string => {
+    const labels: Record<string, Record<string, string>> = {
+      balance_transfer: {
+        add_format: 'Format Tambah',
+        trans_format: 'Format Transfer',
+      },
+      combotrx: {
+        outbox_like_pattern: 'Pola Outbox Like',
+        sdh_pernah_filter: 'Filter Sudah Diproses',
+      },
+      trx: {
+        pesan_format_no_val: 'Format Transaksi Reguler',
+        pesan_format_with_val_nonzero: 'Format Transaksi Nominal Bebas',
+        pesan_format_with_val_zero: 'Format Transaksi (Dengan Prefix 0)',
+        combo_code_format: 'Format Transaksi Combo',
+      },
+      commission_exchange: {
+        tukar_format: 'Format Tukar',
+      },
+    };
+    return labels[section]?.[field] || field;
+  };
+
+  // Render table row for transfer & transaksi configs
+  const renderTransferTransaksiRow = (
+    section: keyof SecurityConfig,
+    field: string,
+    value: string,
+    onUpdate: (field: string, value: string) => void
+  ) => {
+    const label = getTransferTransaksiLabel(section as string, field);
+    const description = getTransferTransaksiDescription(section as string, field);
+    const displayValue = value === null || value === undefined ? '' : String(value);
+
+    return (
+      <div
+        key={field}
+        className="flex gap-3 p-2 bg-white rounded border border-gray-200 hover:bg-gray-50"
+      >
+        {/* Name */}
+        <div className="flex-shrink-0 w-1/4 flex items-start">
+          <span className="text-sm font-medium text-gray-700 truncate block" title={label}>
+            {label}
+          </span>
+        </div>
+        
+        {/* Separator */}
+        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+        
+        {/* Description */}
+        <div className="flex-1 min-w-0 flex items-start">
+          <span className="text-xs text-gray-600 block break-words whitespace-normal" title={description}>
+            {description}
+          </span>
+        </div>
+        
+        {/* Separator */}
+        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+        
+        {/* Format */}
+        <div className="flex-1 min-w-0 flex items-start">
+          <input
+            type="text"
+            value={displayValue}
+            onChange={(e) => onUpdate(field, e.target.value)}
+            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            placeholder={`Masukkan format ${label.toLowerCase()}`}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  // Render table row for outbox static patterns with 3 columns: Key | Title | Pattern
+  const renderOutboxPatternRow = (
+    key: string,
+    title: string,
+    pattern: string,
+    onUpdate: (field: 'title' | 'pattern', value: string) => void
+  ) => {
+    return (
+      <div
+        key={key}
+        className="flex gap-3 p-2 bg-white rounded border border-gray-200 hover:bg-gray-50"
+      >
+        {/* Key */}
+        <div className="flex-shrink-0 w-1/4 flex items-start">
+          <span className="text-xs font-mono text-gray-500 truncate block" title={key}>
+            {key}
+          </span>
+        </div>
+        
+        {/* Separator */}
+        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+        
+        {/* Title */}
+        <div className="flex-1 min-w-0 flex items-start">
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => onUpdate('title', e.target.value)}
+            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            placeholder="Judul pattern"
+          />
+        </div>
+        
+        {/* Separator */}
+        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+        
+        {/* Pattern */}
+        <div className="flex-1 min-w-0 flex items-start">
+          <input
+            type="text"
+            value={pattern}
+            onChange={(e) => onUpdate('pattern', e.target.value)}
+            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            placeholder="Pattern regex"
+          />
+        </div>
+      </div>
+    );
+  };
+
+  // Component for demo number row to handle save on blur
+  const DemoNumberRow = ({
+    demoNumber,
+    onUpdate,
+    onSave
+  }: {
+    demoNumber: string;
+    onUpdate: (value: string) => void;
+    onSave: (value: string) => Promise<void>;
+  }) => {
+    const [localValue, setLocalValue] = useState(demoNumber);
+    const [isFocused, setIsFocused] = useState(false);
+
+    // Only sync with parent when not focused (to avoid losing focus during typing)
+    useEffect(() => {
+      if (!isFocused) {
+        setLocalValue(demoNumber);
+      }
+    }, [demoNumber, isFocused]);
+
+    const key = 'demo_number';
+    const label = getFieldLabel(key);
+    const description = getFieldDescription(key, demoNumber);
+
+    return (
+      <div className="flex gap-3 p-2 bg-white rounded border border-gray-200 hover:bg-gray-50">
+        {/* Key */}
+        <div className="flex-shrink-0 w-1/5 flex items-start">
+          <span className="text-xs font-mono text-gray-500 truncate block" title={key}>
+            {key}
+          </span>
+        </div>
+        
+        {/* Separator */}
+        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+        
+        {/* Name */}
+        <div className="flex-shrink-0 w-1/5 flex items-start">
+          <span className="text-sm font-medium text-gray-700 truncate block" title={label}>
+            {label}
+          </span>
+        </div>
+        
+        {/* Separator */}
+        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+        
+        {/* Description */}
+        <div className="flex-1 min-w-0 flex items-start">
+          <span className="text-xs text-gray-600 block break-words whitespace-normal" title={description}>
+            {description}
+          </span>
+        </div>
+        
+        {/* Separator */}
+        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+        
+        {/* Value */}
+        <div className="flex-shrink-0 w-1/5 flex items-start">
+          <input
+            type="text"
+            value={localValue}
+            onFocus={() => setIsFocused(true)}
+            onChange={(e) => {
+              setLocalValue(e.target.value);
+            }}
+            onBlur={async () => {
+              setIsFocused(false);
+              onUpdate(localValue);
+              await onSave(localValue);
+            }}
+            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            placeholder="contoh: 085156880420"
+          />
+        </div>
+      </div>
+    );
+  };
+
+  // Component for dynamic pattern row to maintain local state
+  const DynamicPatternRow = ({
+    originalKey,
+    title,
+    pattern,
+    onUpdateKey,
+    onUpdateTitle,
+    onUpdatePattern,
+    onDelete
+  }: {
+    originalKey: string;
+    title: string;
+    pattern: string;
+    onUpdateKey: (newKey: string) => void;
+    onUpdateTitle: (value: string) => void;
+    onUpdatePattern: (value: string) => void;
+    onDelete: () => void;
+  }) => {
+    const [localKey, setLocalKey] = useState(originalKey);
+
+    // Update local key when original key changes (from external updates)
+    useEffect(() => {
+      setLocalKey(originalKey);
+    }, [originalKey]);
+
+    return (
+      <div
+        className="flex gap-3 p-2 bg-white rounded border border-gray-200 hover:bg-gray-50"
+      >
+        {/* Key */}
+        <div className="flex-shrink-0 w-1/5 flex items-start">
+          <input
+            type="text"
+            value={localKey}
+            onChange={(e) => {
+              const newKey = e.target.value.replace(/\s+/g, '');
+              setLocalKey(newKey);
+            }}
+            onBlur={(e) => {
+              const trimmedKey = e.target.value.replace(/\s+/g, '');
+              setLocalKey(trimmedKey);
+              if (trimmedKey !== originalKey && trimmedKey !== '') {
+                onUpdateKey(trimmedKey);
+              } else if (trimmedKey === '') {
+                // If empty, revert to original
+                setLocalKey(originalKey);
+              }
+            }}
+            className="w-full px-2 py-1 text-xs font-mono border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            placeholder="Key pattern"
+          />
+        </div>
+        
+        {/* Separator */}
+        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+        
+        {/* Title */}
+        <div className="flex-1 min-w-0 flex items-start">
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => onUpdateTitle(e.target.value)}
+            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            placeholder="Judul pattern"
+          />
+        </div>
+        
+        {/* Separator */}
+        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+        
+        {/* Pattern */}
+        <div className="flex-1 min-w-0 flex items-start">
+          <input
+            type="text"
+            value={pattern}
+            onChange={(e) => onUpdatePattern(e.target.value)}
+            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            placeholder="Pattern regex"
+          />
+        </div>
+        
+        {/* Separator */}
+        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+        
+        {/* Actions */}
+        <div className="flex-shrink-0 w-20 flex items-start">
+          <button
+            onClick={onDelete}
+            className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+            title="Hapus pattern"
+          >
+            Hapus
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // Render table row for priority settings with 4 columns: Key | Name | Descriptions | Value
+  const renderPrioritySettingsRow = (key: string, value: any, onUpdate?: (key: string, value: any) => void) => {
     const type = getFieldType(key, value);
     const label = getFieldLabel(key);
     const description = getFieldDescription(key, value);
+    const updateFn = onUpdate || updateRule;
 
-    if (type === 'boolean') {
-      return (
-        <div key={key} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
-          <div className="flex-1">
-            <h3 className="text-sm font-medium text-gray-900">{label}</h3>
-            <p className="text-xs text-gray-600 mt-0.5">{description}</p>
-            <p className="text-xs text-gray-500 mt-0.5 font-mono">{key}</p>
-          </div>
-          <button
-            onClick={() => updateDynamicRule(key, !value)}
-            className="ml-4 flex items-center"
-          >
-            {value ? (
-              <ToggleRight className="h-6 w-6 text-green-600" />
-            ) : (
-              <ToggleLeft className="h-6 w-6 text-gray-400" />
-            )}
-          </button>
+    return (
+      <div
+        key={key}
+        className="flex gap-3 p-2 bg-white rounded border border-gray-200 hover:bg-gray-50"
+      >
+        {/* Key */}
+        <div className="flex-shrink-0 w-1/5 flex items-start">
+          <span className="text-xs font-mono text-gray-500 truncate block" title={key}>
+            {key}
+          </span>
         </div>
-      );
-    } else if (type === 'number') {
-      return (
-        <div key={key} className="p-3 bg-white rounded-lg border border-gray-200">
-          <label className="block">
-            <h3 className="text-sm font-medium text-gray-900">{label}</h3>
-            <p className="text-xs text-gray-600 mt-0.5">{description}</p>
-            <p className="text-xs text-gray-500 mt-0.5 font-mono">{key}</p>
+        
+        {/* Separator */}
+        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+        
+        {/* Name */}
+        <div className="flex-shrink-0 w-1/5 flex items-start">
+          <span className="text-sm font-medium text-gray-700 truncate block" title={label}>
+            {label}
+          </span>
+        </div>
+        
+        {/* Separator */}
+        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+        
+        {/* Description */}
+        <div className="flex-1 min-w-0 flex items-start">
+          <span className="text-xs text-gray-600 block break-words whitespace-normal" title={description}>
+            {description}
+          </span>
+        </div>
+        
+        {/* Separator */}
+        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+        
+        {/* Value */}
+        <div className="flex-shrink-0 w-1/5 flex items-start">
+          {type === 'boolean' ? (
+            <button
+              onClick={() => updateFn(key, !value)}
+              className="flex items-center"
+            >
+              {value ? (
+                <ToggleRight className="h-6 w-6 text-green-600" />
+              ) : (
+                <ToggleLeft className="h-6 w-6 text-gray-400" />
+              )}
+            </button>
+          ) : type === 'number' ? (
             <input
               type="number"
               value={value || ''}
-              onChange={(e) => updateDynamicRule(key, parseInt(e.target.value) || 0)}
-              className="mt-1.5 w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              onChange={(e) => updateFn(key, parseInt(e.target.value) || 0)}
+              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
-          </label>
+          ) : type === 'time' ? (
+            <input
+              type="time"
+              value={value || ''}
+              onChange={(e) => updateFn(key, e.target.value)}
+              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
+          ) : (
+            (() => {
+              const isLongText = String(value).length > 50;
+              return isLongText ? (
+                <textarea
+                  value={value || ''}
+                  onChange={(e) => updateFn(key, e.target.value)}
+                  rows={2}
+                  className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              ) : (
+                <input
+                  type="text"
+                  value={value || ''}
+                  onChange={(e) => updateFn(key, e.target.value)}
+                  className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              );
+            })()
+          )}
         </div>
-      );
-    } else {
-      const isLongText = String(value).length > 50;
-      return (
-        <div key={key} className="p-3 bg-white rounded-lg border border-gray-200">
-          <label className="block">
-            <h3 className="text-sm font-medium text-gray-900">{label}</h3>
-            <p className="text-xs text-gray-600 mt-0.5">{description}</p>
-            <p className="text-xs text-gray-500 mt-0.5 font-mono">{key}</p>
-            {isLongText ? (
-              <textarea
-                value={value || ''}
-                onChange={(e) => updateDynamicRule(key, e.target.value)}
-                rows={2}
-                className="mt-1.5 w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              />
-            ) : (
-              <input
-                type="text"
-                value={value || ''}
-                onChange={(e) => updateDynamicRule(key, e.target.value)}
-                className="mt-1.5 w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              />
-            )}
-          </label>
-        </div>
-      );
-    }
+      </div>
+    );
   };
 
   // Unified save function that saves both configurations
@@ -1045,6 +1327,32 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
       }
     }
 
+    // Save Demo Number
+    try {
+      const apiUrl = await getApiUrl('/admin/demo-config/save');
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Token': X_TOKEN_VALUE,
+          'Session-Key': sessionKey,
+          'Auth-Seed': authSeed,
+        },
+        body: JSON.stringify({ demo_number: demoNumber || '' }),
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        results.push('Demo number saved successfully');
+      } else {
+        results.push(`Demo number error: ${data.message || 'Failed to save'}`);
+        hasErrors = true;
+      }
+    } catch (error) {
+      results.push('Demo number error: Network error');
+      hasErrors = true;
+    }
+
     // Show result message
     if (hasErrors) {
       setMessage({ 
@@ -1066,6 +1374,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
         loadDynamicRules(); // Reload dynamic rules after app rules
       }
       if (cutoffConfig) loadCutoffConfig();
+      loadDemoNumber();
     }, 1000);
   };
 
@@ -1179,6 +1488,16 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
               Transfer & Transaksi
             </button>
             <button
+              onClick={() => setActiveTab('client_config')}
+              className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                activeTab === 'client_config'
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Blokir Referral
+            </button>
+            <button
               onClick={() => setActiveTab('produk_poin')}
               className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
                 activeTab === 'produk_poin'
@@ -1197,26 +1516,6 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
               }`}
             >
               Outbox Patterns
-            </button>
-            <button
-              onClick={() => setActiveTab('cutoff')}
-              className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-                activeTab === 'cutoff'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Cutoff
-            </button>
-            <button
-              onClick={() => setActiveTab('demo_number')}
-              className={`flex-shrink-0 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-                activeTab === 'demo_number'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Demo Number
             </button>
           </nav>
         </div>
@@ -1241,14 +1540,27 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                     <span className="ml-3 text-gray-600">Memuat pengaturan prioritas...</span>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {prioritySettings.map(key => {
-                      const value = appRules[key];
-                      if (value !== undefined) {
-                        return renderField(key, value);
-                      }
-                      return null;
-                    })}
+                  <div className="border border-gray-200 rounded-lg p-4">
+                    <div className="mb-3 pb-2 border-b border-gray-200">
+                      <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
+                        <div className="flex-shrink-0 w-1/5">Key</div>
+                        <div className="flex-shrink-0 text-gray-400">|</div>
+                        <div className="flex-shrink-0 w-1/5">Name</div>
+                        <div className="flex-shrink-0 text-gray-400">|</div>
+                        <div className="flex-1 min-w-0">Descriptions</div>
+                        <div className="flex-shrink-0 text-gray-400">|</div>
+                        <div className="flex-shrink-0 w-1/5">Value</div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {prioritySettings.map(key => {
+                        const value = appRules[key];
+                        if (value !== undefined) {
+                          return renderPrioritySettingsRow(key, value);
+                        }
+                        return null;
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1264,16 +1576,144 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    {Object.entries(dynamicRules).map(([key, value]) => {
-                      if (value !== undefined) {
-                        return renderDynamicField(key, value);
-                      }
-                      return null;
-                    })}
+                  <div className="border border-gray-200 rounded-lg p-4">
+                    <div className="mb-3 pb-2 border-b border-gray-200">
+                      <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
+                        <div className="flex-shrink-0 w-1/5">Key</div>
+                        <div className="flex-shrink-0 text-gray-400">|</div>
+                        <div className="flex-shrink-0 w-1/5">Name</div>
+                        <div className="flex-shrink-0 text-gray-400">|</div>
+                        <div className="flex-1 min-w-0">Descriptions</div>
+                        <div className="flex-shrink-0 text-gray-400">|</div>
+                        <div className="flex-shrink-0 w-1/5">Value</div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {Object.entries(dynamicRules).map(([key, value]) => {
+                        if (value !== undefined) {
+                          return renderPrioritySettingsRow(key, value, updateDynamicRule);
+                        }
+                        return null;
+                      })}
+                    </div>
                   </div>
                 </div>
               )}
+
+              {/* Cutoff Configuration Section */}
+              {cutoffConfig && (
+                <div>
+                  <div className="flex items-center space-x-3 mb-4">
+                    <Clock className="h-6 w-6 text-orange-600" />
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">Pengaturan Cutoff</h3>
+                      <p className="text-sm text-gray-600">Konfigurasi waktu cutoff untuk transaksi</p>
+                    </div>
+                  </div>
+
+                  {loadingCutoff ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-600"></div>
+                      <span className="ml-3 text-gray-600">Memuat konfigurasi cutoff...</span>
+                    </div>
+                  ) : (
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <div className="mb-3 pb-2 border-b border-gray-200">
+                        <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
+                          <div className="flex-shrink-0 w-1/5">Key</div>
+                          <div className="flex-shrink-0 text-gray-400">|</div>
+                          <div className="flex-shrink-0 w-1/5">Name</div>
+                          <div className="flex-shrink-0 text-gray-400">|</div>
+                          <div className="flex-1 min-w-0">Descriptions</div>
+                          <div className="flex-shrink-0 text-gray-400">|</div>
+                          <div className="flex-shrink-0 w-1/5">Value</div>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        {renderPrioritySettingsRow(
+                          'cutoff_start',
+                          cutoffConfig.cutoff_start,
+                          (_key, value) => setCutoffConfig({ ...cutoffConfig, cutoff_start: value })
+                        )}
+                        {renderPrioritySettingsRow(
+                          'cutoff_end',
+                          cutoffConfig.cutoff_end,
+                          (_key, value) => setCutoffConfig({ ...cutoffConfig, cutoff_end: value })
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Demo Number Configuration Section */}
+              <div>
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="h-6 w-6 bg-gray-100 rounded-full flex items-center justify-center">
+                    <span className="text-gray-600 font-bold text-sm">DN</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Nomor Pengirim Demo</h3>
+                    <p className="text-sm text-gray-600">Konfigurasi nomor demo untuk bypass OTP</p>
+                  </div>
+                </div>
+
+                {loadingDemoNumber ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-600"></div>
+                    <span className="ml-3 text-gray-600">Memuat nomor demo...</span>
+                  </div>
+                ) : (
+                  <div className="border border-gray-200 rounded-lg p-4">
+                    <div className="mb-3 pb-2 border-b border-gray-200">
+                      <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
+                        <div className="flex-shrink-0 w-1/5">Key</div>
+                        <div className="flex-shrink-0 text-gray-400">|</div>
+                        <div className="flex-shrink-0 w-1/5">Name</div>
+                        <div className="flex-shrink-0 text-gray-400">|</div>
+                        <div className="flex-1 min-w-0">Descriptions</div>
+                        <div className="flex-shrink-0 text-gray-400">|</div>
+                        <div className="flex-shrink-0 w-1/5">Value</div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <DemoNumberRow
+                        demoNumber={demoNumber || ''}
+                        onUpdate={(value) => setDemoNumber(value)}
+                        onSave={async (value) => {
+                          try {
+                            const sessionKey = localStorage.getItem('adminSessionKey');
+                            if (!sessionKey) {
+                              setMessage({ type: 'error', text: 'Session key not found. Please login again.' });
+                              return;
+                            }
+                            const apiUrl = await getApiUrl('/admin/demo-config/save');
+                            const res = await fetch(apiUrl, {
+                              method: 'POST',
+                              headers: {
+                                'Content-Type': 'application/json',
+                                'X-Token': X_TOKEN_VALUE,
+                                'Session-Key': sessionKey,
+                                'Auth-Seed': authSeed,
+                              },
+                              body: JSON.stringify({ demo_number: value || '' }),
+                            });
+                            const data = await res.json();
+                            if (res.ok && data.success) {
+                              setMessage({ type: 'success', text: 'Demo number saved' });
+                              loadDemoNumber();
+                            } else {
+                              setMessage({ type: 'error', text: data.message || 'Failed to save demo number' });
+                            }
+                          } catch (e) {
+                            setMessage({ type: 'error', text: 'Network error saving demo number' });
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -1286,7 +1726,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                   <div className="h-6 w-6 bg-orange-100 rounded-full flex items-center justify-center">
                     <span className="text-orange-600 font-bold text-sm">BT</span>
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Transfer Saldo</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Format Transfer Saldo</h3>
                 </div>
 
                 {!config.balance_transfer && (
@@ -1303,146 +1743,36 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                       }}
                       className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
                     >
-                      Aktifkan Konfigurasi Transfer Saldo
+                      Aktifkan Konfigurasi Format Transfer Saldo
                     </button>
                   </div>
                 )}
 
                 {config.balance_transfer && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Format Tambah
-                      </label>
-                      <input
-                        type="text"
-                        value={config.balance_transfer.add_format}
-                        onChange={(e) => updateConfig('balance_transfer', 'add_format', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="ADD.{destination}.{val}.{pin}"
-                      />
-                      <p className="text-sm text-gray-500 mt-1">
-                        Format untuk menambah saldo. Gunakan {`{destination}`}, {`{val}`}, {`{pin}`} sebagai placeholder.
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Format Transfer
-                      </label>
-                      <input
-                        type="text"
-                        value={config.balance_transfer.trans_format}
-                        onChange={(e) => updateConfig('balance_transfer', 'trans_format', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="TRANS.{destination}.{val}.{pin}"
-                      />
-                      <p className="text-sm text-gray-500 mt-1">
-                        Format untuk mentransfer saldo. Gunakan {`{destination}`}, {`{val}`}, {`{pin}`} sebagai placeholder.
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Combotrx Configuration */}
-              <div>
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className="h-6 w-6 bg-blue-100 rounded-full flex items-center justify-center">
-                    <span className="text-blue-600 font-bold text-sm">CT</span>
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Combotrx</h3>
-                </div>
-
-                {!config.combotrx && (
-                  <div className="mb-4">
-                    <button
-                      onClick={() => {
-                        setConfig(prev => ({
-                          ...prev!,
-                          combotrx: {
-                            outbox_like_pattern: "%{product}.{destination}%Sukses%",
-                            pesan_format_no_val: "{trxid}.{product}.{destination}.{pin}",
-                            pesan_format_with_val: "{trxid}.{product}.{destination}.{val}.{pin}",
-                            sdh_pernah_filter: "%sdh pernah%"
-                          }
-                        }));
-                      }}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                    >
-                      Aktifkan Konfigurasi Combotrx
-                    </button>
-                  </div>
-                )}
-
-                {config.combotrx && (
-                  <div className="space-y-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Pola Outbox Like
-                      </label>
-                      <input
-                        type="text"
-                        value={config.combotrx.outbox_like_pattern}
-                        onChange={(e) => updateConfig('combotrx', 'outbox_like_pattern', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="%{product}.{destination}%Sukses%"
-                      />
-                      <p className="text-sm text-gray-500 mt-1">
-                        Pola untuk mencocokkan pesan outbox. Gunakan {`{product}`}, {`{destination}`} sebagai placeholder.
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Format Pesan (Tanpa Nilai)
-                        </label>
-                        <input
-                          type="text"
-                          value={config.combotrx.pesan_format_no_val}
-                          onChange={(e) => updateConfig('combotrx', 'pesan_format_no_val', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="{trxid}.{product}.{destination}.{pin}"
-                        />
-                        <p className="text-sm text-gray-500 mt-1">
-                          Format untuk pesan tanpa nilai. Gunakan {`{trxid}`}, {`{product}`}, {`{destination}`}, {`{pin}`} sebagai placeholder.
-                        </p>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Format Pesan (Dengan Nilai)
-                        </label>
-                        <input
-                          type="text"
-                          value={config.combotrx.pesan_format_with_val}
-                          onChange={(e) => updateConfig('combotrx', 'pesan_format_with_val', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="{trxid}.{product}.{destination}.{val}.{pin}"
-                        />
-                        <p className="text-sm text-gray-500 mt-1">
-                          Format untuk pesan dengan nilai. Gunakan {`{trxid}`}, {`{product}`}, {`{destination}`}, {`{val}`}, {`{pin}`} sebagai placeholder.
-                        </p>
+                  <div className="border border-gray-200 rounded-lg p-4">
+                    <div className="mb-3 pb-2 border-b border-gray-200">
+                      <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
+                        <div className="flex-shrink-0 w-1/4">Name</div>
+                        <div className="flex-shrink-0 text-gray-400">|</div>
+                        <div className="flex-1 min-w-0">Descriptions</div>
+                        <div className="flex-shrink-0 text-gray-400">|</div>
+                        <div className="flex-1 min-w-0">Format</div>
                       </div>
                     </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Filter Sudah Diproses
-                      </label>
-                      <input
-                        type="text"
-                        value={config.combotrx.sdh_pernah_filter}
-                        onChange={(e) => updateConfig('combotrx', 'sdh_pernah_filter', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="%sdh pernah%"
-                      />
-                      <p className="text-sm text-gray-500 mt-1">
-                        Pola untuk memfilter pesan yang sudah diproses.
-                      </p>
+                    <div className="space-y-2">
+                      {renderTransferTransaksiRow(
+                        'balance_transfer',
+                        'add_format',
+                        config.balance_transfer.add_format,
+                        (field, value) => updateConfig('balance_transfer', field, value)
+                      )}
+                      {renderTransferTransaksiRow(
+                        'balance_transfer',
+                        'trans_format',
+                        config.balance_transfer.trans_format,
+                        (field, value) => updateConfig('balance_transfer', field, value)
+                      )}
                     </div>
-
                   </div>
                 )}
               </div>
@@ -1453,7 +1783,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                   <div className="h-6 w-6 bg-indigo-100 rounded-full flex items-center justify-center">
                     <span className="text-indigo-600 font-bold text-sm">TRX</span>
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Transaksi</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Format Transaksi</h3>
                 </div>
 
                 {!config.trx && (
@@ -1472,89 +1802,113 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                       }}
                       className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
                     >
-                      Aktifkan Konfigurasi Transaksi
+                      Aktifkan Konfigurasi Format Transaksi
                     </button>
                   </div>
                 )}
 
                 {config.trx && (
-                  <div className="space-y-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Format Pesan (Tanpa Nilai)
-                      </label>
-                      <input
-                        type="text"
-                        value={config.trx.pesan_format_no_val}
-                        onChange={(e) => updateConfig('trx', 'pesan_format_no_val', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="{trxid}.{product}.{destination}.{pin}"
-                      />
-                      <p className="text-sm text-gray-500 mt-1">
-                        Format untuk pesan tanpa nilai. Gunakan {`{trxid}`}, {`{product}`}, {`{destination}`}, {`{pin}`} sebagai placeholder.
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Format Pesan (Dengan Nilai Non-Zero)
-                        </label>
-                        <input
-                          type="text"
-                          value={config.trx.pesan_format_with_val_nonzero}
-                          onChange={(e) => updateConfig('trx', 'pesan_format_with_val_nonzero', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="{trxid}.{product}.{destination}.{val}.{pin}"
-                        />
-                        <p className="text-sm text-gray-500 mt-1">
-                          Format untuk pesan dengan nilai non-zero. Gunakan {`{trxid}`}, {`{product}`}, {`{destination}`}, {`{val}`}, {`{pin}`} sebagai placeholder.
-                        </p>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Format Pesan (Dengan Nilai Zero)
-                        </label>
-                        <input
-                          type="text"
-                          value={config.trx.pesan_format_with_val_zero}
-                          onChange={(e) => updateConfig('trx', 'pesan_format_with_val_zero', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="{product}.{destination}.{pin}.{val}"
-                        />
-                        <p className="text-sm text-gray-500 mt-1">
-                          Format untuk pesan dengan nilai zero. Gunakan {`{product}`}, {`{destination}`}, {`{pin}`}, {`{val}`} sebagai placeholder.
-                        </p>
+                  <div className="border border-gray-200 rounded-lg p-4">
+                    <div className="mb-3 pb-2 border-b border-gray-200">
+                      <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
+                        <div className="flex-shrink-0 w-1/4">Name</div>
+                        <div className="flex-shrink-0 text-gray-400">|</div>
+                        <div className="flex-1 min-w-0">Descriptions</div>
+                        <div className="flex-shrink-0 text-gray-400">|</div>
+                        <div className="flex-1 min-w-0">Format</div>
                       </div>
                     </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Format Combo Code
-                      </label>
-                      <input
-                        type="text"
-                        value={config.trx.combo_code_format || ''}
-                        onChange={(e) => updateConfig('trx', 'combo_code_format', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="{trxid}.{combo_code}.{product}.{destination}.{pin}"
-                      />
-                      <p className="text-sm text-gray-500 mt-1">
-                        Format untuk pesan dengan combo code. Gunakan {`{trxid}`}, {`{combo_code}`}, {`{product}`}, {`{destination}`}, {`{pin}`} sebagai placeholder.
-                      </p>
+                    <div className="space-y-2">
+                      {renderTransferTransaksiRow(
+                        'trx',
+                        'pesan_format_no_val',
+                        config.trx.pesan_format_no_val,
+                        (field, value) => updateConfig('trx', field, value)
+                      )}
+                      {renderTransferTransaksiRow(
+                        'trx',
+                        'pesan_format_with_val_nonzero',
+                        config.trx.pesan_format_with_val_nonzero,
+                        (field, value) => updateConfig('trx', field, value)
+                      )}
+                      {renderTransferTransaksiRow(
+                        'trx',
+                        'pesan_format_with_val_zero',
+                        config.trx.pesan_format_with_val_zero,
+                        (field, value) => updateConfig('trx', field, value)
+                      )}
+                      {renderTransferTransaksiRow(
+                        'trx',
+                        'combo_code_format',
+                        config.trx.combo_code_format || '',
+                        (field, value) => updateConfig('trx', field, value)
+                      )}
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Client Config Configuration */}
+              {/* Commission Exchange Configuration */}
+              <div>
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="h-6 w-6 bg-green-100 rounded-full flex items-center justify-center">
+                    <span className="text-green-600 font-bold text-sm">CE</span>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Format Tukar Komisi</h3>
+                </div>
+
+                {!config.commission_exchange && (
+                  <div className="mb-4">
+                    <button
+                      onClick={() => {
+                        setConfig(prev => ({
+                          ...prev!,
+                          commission_exchange: {
+                            tukar_format: "TUKAR.{val}.{pin}"
+                          }
+                        }));
+                      }}
+                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                    >
+                      Aktifkan Konfigurasi Format Tukar Komisi
+                    </button>
+                  </div>
+                )}
+
+                {config.commission_exchange && (
+                  <div className="border border-gray-200 rounded-lg p-4">
+                    <div className="mb-3 pb-2 border-b border-gray-200">
+                      <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
+                        <div className="flex-shrink-0 w-1/4">Name</div>
+                        <div className="flex-shrink-0 text-gray-400">|</div>
+                        <div className="flex-1 min-w-0">Descriptions</div>
+                        <div className="flex-shrink-0 text-gray-400">|</div>
+                        <div className="flex-1 min-w-0">Format</div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {renderTransferTransaksiRow(
+                        'commission_exchange',
+                        'tukar_format',
+                        config.commission_exchange.tukar_format,
+                        (field, value) => updateConfig('commission_exchange', field, value)
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Blokir Referral Tab */}
+          {activeTab === 'client_config' && (
+            <div className="space-y-6">
               <div>
                 <div className="flex items-center space-x-3 mb-4">
                   <div className="h-6 w-6 bg-red-100 rounded-full flex items-center justify-center">
                     <span className="text-red-600 font-bold text-sm">CC</span>
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Klien</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">Blokir Referral</h3>
                 </div>
 
                 {!config.client_config && (
@@ -1570,7 +1924,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                       }}
                       className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
                     >
-                      Aktifkan Konfigurasi Klien
+                      Aktifkan Blokir Referral
                     </button>
                   </div>
                 )}
@@ -1617,52 +1971,6 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                     </div>
                     <p className="text-sm text-gray-500 mt-1">
                       Daftar kode referral yang dilarang digunakan untuk registrasi.
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Commission Exchange Configuration */}
-              <div>
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className="h-6 w-6 bg-green-100 rounded-full flex items-center justify-center">
-                    <span className="text-green-600 font-bold text-sm">CE</span>
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Tukar Komisi</h3>
-                </div>
-
-                {!config.commission_exchange && (
-                  <div className="mb-4">
-                    <button
-                      onClick={() => {
-                        setConfig(prev => ({
-                          ...prev!,
-                          commission_exchange: {
-                            tukar_format: "TUKAR.{val}.{pin}"
-                          }
-                        }));
-                      }}
-                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-                    >
-                      Aktifkan Konfigurasi Tukar Komisi
-                    </button>
-                  </div>
-                )}
-
-                {config.commission_exchange && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Format Tukar
-                    </label>
-                    <input
-                      type="text"
-                      value={config.commission_exchange.tukar_format}
-                      onChange={(e) => updateConfig('commission_exchange', 'tukar_format', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="TUKAR.{val}.{pin}"
-                    />
-                    <p className="text-sm text-gray-500 mt-1">
-                      Format untuk tukar komisi. Gunakan {`{val}`}, {`{pin}`} sebagai placeholder.
                     </p>
                   </div>
                 )}
@@ -1794,15 +2102,75 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
 
           {/* Outbox Patterns Tab */}
           {activeTab === 'outbox_patterns' && (
-            <div>
+            <div className="space-y-8">
+              {/* Combotrx Configuration */}
+              <div>
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="h-6 w-6 bg-blue-100 rounded-full flex items-center justify-center">
+                    <span className="text-blue-600 font-bold text-sm">CT</span>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Outbox Paket Combo</h3>
+                </div>
+
+                {!config.combotrx && (
+                  <div className="mb-4">
+                    <button
+                      onClick={() => {
+                        setConfig(prev => ({
+                          ...prev!,
+                          combotrx: {
+                            outbox_like_pattern: "%{product}.{destination}%Sukses%",
+                            sdh_pernah_filter: "%sdh pernah%"
+                          }
+                        }));
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                    >
+                      Aktifkan Konfigurasi Combotrx
+                    </button>
+                  </div>
+                )}
+
+                {config.combotrx && (
+                  <div className="border border-gray-200 rounded-lg p-4">
+                    <div className="mb-3 pb-2 border-b border-gray-200">
+                      <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
+                        <div className="flex-shrink-0 w-1/4">Name</div>
+                        <div className="flex-shrink-0 text-gray-400">|</div>
+                        <div className="flex-1 min-w-0">Descriptions</div>
+                        <div className="flex-shrink-0 text-gray-400">|</div>
+                        <div className="flex-1 min-w-0">Format</div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {renderTransferTransaksiRow(
+                        'combotrx',
+                        'outbox_like_pattern',
+                        config.combotrx.outbox_like_pattern,
+                        (field, value) => updateConfig('combotrx', field, value)
+                      )}
+                      {renderTransferTransaksiRow(
+                        'combotrx',
+                        'sdh_pernah_filter',
+                        config.combotrx.sdh_pernah_filter,
+                        (field, value) => updateConfig('combotrx', field, value)
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Outbox Patterns */}
               {!config.outbox_patterns && (
-                <div className="mb-4">
-                  <button
-                    onClick={initializeOutboxPatterns}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
-                  >
-                    Aktifkan Konfigurasi Outbox Patterns
-                  </button>
+                <div>
+                  <div className="mb-4">
+                    <button
+                      onClick={initializeOutboxPatterns}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+                    >
+                      Aktifkan Konfigurasi Outbox Patterns
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -1818,104 +2186,44 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                     {/* Static Patterns */}
                     <div>
                       <h4 className="text-md font-semibold text-gray-800 mb-4">Pattern Statis (Tidak Dapat Dihapus)</h4>
-                      <div className="space-y-4">
-                        {/* Transaksi Sukses */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Judul Transaksi Sukses
-                            </label>
-                            <input
-                              type="text"
-                              value={config.outbox_patterns.static_patterns.transaksi_sukses.title}
-                              onChange={(e) => updateConfig('outbox_patterns', 'static_transaksi_sukses', {
-                                ...config.outbox_patterns!.static_patterns.transaksi_sukses,
-                                title: e.target.value
-                              })}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Pattern Transaksi Sukses
-                            </label>
-                            <input
-                              type="text"
-                              value={config.outbox_patterns.static_patterns.transaksi_sukses.pattern}
-                              onChange={(e) => updateConfig('outbox_patterns', 'static_transaksi_sukses', {
-                                ...config.outbox_patterns!.static_patterns.transaksi_sukses,
-                                pattern: e.target.value
-                              })}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="(?i)sukses"
-                            />
+                      <div className="border border-gray-200 rounded-lg p-4">
+                        <div className="mb-3 pb-2 border-b border-gray-200">
+                          <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
+                            <div className="flex-shrink-0 w-1/4">Key</div>
+                            <div className="flex-shrink-0 text-gray-400">|</div>
+                            <div className="flex-1 min-w-0">Title</div>
+                            <div className="flex-shrink-0 text-gray-400">|</div>
+                            <div className="flex-1 min-w-0">Regex Pattern</div>
                           </div>
                         </div>
-
-                        {/* Transaksi Proses */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Judul Transaksi Proses
-                            </label>
-                            <input
-                              type="text"
-                              value={config.outbox_patterns.static_patterns.transaksi_proses.title}
-                              onChange={(e) => updateConfig('outbox_patterns', 'static_transaksi_proses', {
-                                ...config.outbox_patterns!.static_patterns.transaksi_proses,
-                                title: e.target.value
-                              })}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Pattern Transaksi Proses
-                            </label>
-                            <input
-                              type="text"
-                              value={config.outbox_patterns.static_patterns.transaksi_proses.pattern}
-                              onChange={(e) => updateConfig('outbox_patterns', 'static_transaksi_proses', {
-                                ...config.outbox_patterns!.static_patterns.transaksi_proses,
-                                pattern: e.target.value
-                              })}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="(?i)proses"
-                            />
-                          </div>
-                        </div>
-
-                        {/* Transaksi Gagal */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Judul Transaksi Gagal
-                            </label>
-                            <input
-                              type="text"
-                              value={config.outbox_patterns.static_patterns.transaksi_gagal.title}
-                              onChange={(e) => updateConfig('outbox_patterns', 'static_transaksi_gagal', {
-                                ...config.outbox_patterns!.static_patterns.transaksi_gagal,
-                                title: e.target.value
-                              })}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Pattern Transaksi Gagal
-                            </label>
-                            <input
-                              type="text"
-                              value={config.outbox_patterns.static_patterns.transaksi_gagal.pattern}
-                              onChange={(e) => updateConfig('outbox_patterns', 'static_transaksi_gagal', {
-                                ...config.outbox_patterns!.static_patterns.transaksi_gagal,
-                                pattern: e.target.value
-                              })}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="(?i)Gagal"
-                            />
-                          </div>
+                        <div className="space-y-2">
+                          {renderOutboxPatternRow(
+                            'transaksi_sukses',
+                            config.outbox_patterns.static_patterns.transaksi_sukses.title,
+                            config.outbox_patterns.static_patterns.transaksi_sukses.pattern,
+                            (field, value) => updateConfig('outbox_patterns', 'static_transaksi_sukses', {
+                              ...config.outbox_patterns!.static_patterns.transaksi_sukses,
+                              [field]: value
+                            })
+                          )}
+                          {renderOutboxPatternRow(
+                            'transaksi_proses',
+                            config.outbox_patterns.static_patterns.transaksi_proses.title,
+                            config.outbox_patterns.static_patterns.transaksi_proses.pattern,
+                            (field, value) => updateConfig('outbox_patterns', 'static_transaksi_proses', {
+                              ...config.outbox_patterns!.static_patterns.transaksi_proses,
+                              [field]: value
+                            })
+                          )}
+                          {renderOutboxPatternRow(
+                            'transaksi_gagal',
+                            config.outbox_patterns.static_patterns.transaksi_gagal.title,
+                            config.outbox_patterns.static_patterns.transaksi_gagal.pattern,
+                            (field, value) => updateConfig('outbox_patterns', 'static_transaksi_gagal', {
+                              ...config.outbox_patterns!.static_patterns.transaksi_gagal,
+                              [field]: value
+                            })
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1932,281 +2240,73 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                         </button>
                       </div>
                       
-                      <div className="space-y-4">
-                        {dynamicPatternOrder.map((key, index) => {
-                          const pattern = config.outbox_patterns?.dynamic_patterns[key];
-                          if (!pattern) return null;
-                          return (
-                            <div key={`pattern-${index}`} className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border border-gray-200 rounded-md">
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  Key Pattern
-                                </label>
-                                <input
-                                  type="text"
-                                  value={key}
-                                  onChange={(e) => {
-                                    const newKey = e.target.value.replace(/\s+/g, ''); // Remove all spaces
-                                    if (newKey !== key) {
-                                      // Update the key in the dynamic patterns
-                                      setConfig(prev => {
-                                        if (!prev?.outbox_patterns) return null;
-                                        const newDynamicPatterns = { ...prev.outbox_patterns.dynamic_patterns };
-                                        const patternData = newDynamicPatterns[key];
-                                        delete newDynamicPatterns[key];
-                                        newDynamicPatterns[newKey] = patternData;
-                                        
-                                        return {
-                                          ...prev,
-                                          outbox_patterns: {
-                                            ...prev.outbox_patterns,
-                                            dynamic_patterns: newDynamicPatterns
-                                          }
-                                        };
-                                      });
-                                      
-                                      // Update the order array
-                                      setDynamicPatternOrder(prev => prev.map(k => k === key ? newKey : k));
-                                    }
-                                  }}
-                                  onBlur={(e) => {
-                                    // Ensure no spaces on blur (when user finishes editing)
-                                    const trimmedKey = e.target.value.replace(/\s+/g, '');
-                                    if (trimmedKey !== e.target.value) {
-                                      e.target.value = trimmedKey;
-                                      if (trimmedKey !== key) {
-                                        setConfig(prev => {
-                                          if (!prev?.outbox_patterns) return null;
-                                          const newDynamicPatterns = { ...prev.outbox_patterns.dynamic_patterns };
-                                          const patternData = newDynamicPatterns[key];
-                                          delete newDynamicPatterns[key];
-                                          newDynamicPatterns[trimmedKey] = patternData;
-                                          
-                                          return {
-                                            ...prev,
-                                            outbox_patterns: {
-                                              ...prev.outbox_patterns,
-                                              dynamic_patterns: newDynamicPatterns
-                                            }
-                                          };
-                                        });
-                                        
-                                        // Update the order array
-                                        setDynamicPatternOrder(prev => prev.map(k => k === key ? trimmedKey : k));
-                                      }
-                                    }
-                                  }}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  Judul
-                                </label>
-                                <input
-                                  type="text"
-                                  value={pattern.title}
-                                  onChange={(e) => updateConfig('outbox_patterns', `dynamic_${key}`, {
-                                    ...pattern,
-                                    title: e.target.value
-                                  })}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                />
-                              </div>
-                              <div className="flex items-end space-x-2">
-                                <div className="flex-1">
-                                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Pattern Regex
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={pattern.pattern}
-                                    onChange={(e) => updateConfig('outbox_patterns', `dynamic_${key}`, {
-                                      ...pattern,
-                                      pattern: e.target.value
-                                    })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                  />
-                                </div>
-                                <button
-                                  onClick={() => removeDynamicPattern(key)}
-                                  className="px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-sm"
-                                >
-                                  Hapus
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                        
-                        {dynamicPatternOrder.length === 0 && (
-                          <div className="text-center py-8 text-gray-500">
-                            <p>Belum ada pattern dinamis. Klik "Tambah Pattern" untuk menambahkan.</p>
+                      <div className="border border-gray-200 rounded-lg p-4">
+                        <div className="mb-3 pb-2 border-b border-gray-200">
+                          <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
+                            <div className="flex-shrink-0 w-1/5">Key</div>
+                            <div className="flex-shrink-0 text-gray-400">|</div>
+                            <div className="flex-1 min-w-0">Title</div>
+                            <div className="flex-shrink-0 text-gray-400">|</div>
+                            <div className="flex-1 min-w-0">Regex Pattern</div>
+                            <div className="flex-shrink-0 text-gray-400">|</div>
+                            <div className="flex-shrink-0 w-20">Actions</div>
                           </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Cutoff Tab */}
-          {activeTab === 'cutoff' && (
-            <div>
-              <div className="flex items-center space-x-3 mb-4">
-                <Clock className="h-6 w-6 text-orange-600" />
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Pengaturan Cutoff</h3>
-                  <p className="text-sm text-gray-600">Konfigurasi waktu cutoff untuk transaksi</p>
-                </div>
-              </div>
-
-              {loadingCutoff ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-600"></div>
-                  <span className="ml-3 text-gray-600">Memuat konfigurasi cutoff...</span>
-                </div>
-              ) : cutoffConfig ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Cutoff Start Time */}
-                  <div>
-                    <label htmlFor="cutoff_start" className="block text-sm font-medium text-gray-700 mb-2">
-                      Waktu Mulai Cutoff
-                    </label>
-                    <input
-                      type="time"
-                      id="cutoff_start"
-                      value={cutoffConfig.cutoff_start}
-                      onChange={(e) => setCutoffConfig({ ...cutoffConfig, cutoff_start: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                    />
-                    <p className="mt-1 text-sm text-gray-500">
-                      Waktu ketika sistem mulai periode cutoff (format 24 jam)
-                    </p>
-                  </div>
-
-                  {/* Cutoff End Time */}
-                  <div>
-                    <label htmlFor="cutoff_end" className="block text-sm font-medium text-gray-700 mb-2">
-                      Waktu Selesai Cutoff
-                    </label>
-                    <input
-                      type="time"
-                      id="cutoff_end"
-                      value={cutoffConfig.cutoff_end}
-                      onChange={(e) => setCutoffConfig({ ...cutoffConfig, cutoff_end: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                    />
-                    <p className="mt-1 text-sm text-gray-500">
-                      Waktu ketika sistem mengakhiri periode cutoff (format 24 jam)
-                    </p>
-                  </div>
-
-                  {/* Information Box */}
-                  <div className="md:col-span-2">
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                      <div className="flex items-start space-x-3">
-                        <Info className="h-5 w-5 text-yellow-600 mt-0.5" />
-                        <div className="text-sm text-yellow-800">
-                          <p className="font-medium mb-1">Tentang Waktu Cutoff:</p>
-                          <ul className="list-disc list-inside space-y-1">
-                            <li>Selama periode cutoff, transaksi tertentu mungkin dibatasi atau ditunda</li>
-                            <li>Waktu dalam format 24 jam (HH:MM)</li>
-                            <li>Perubahan berlaku segera setelah disimpan</li>
-                            <li>Contoh: 23:45 sampai 00:15 berarti cutoff dari 11:45 PM sampai 12:15 AM</li>
-                          </ul>
+                        </div>
+                        <div className="space-y-2">
+                          {dynamicPatternOrder.map((key, index) => {
+                            const pattern = config.outbox_patterns?.dynamic_patterns[key];
+                            if (!pattern) return null;
+                            return (
+                              <DynamicPatternRow
+                                key={`dynamic-pattern-${index}`}
+                                originalKey={key}
+                                title={pattern.title}
+                                pattern={pattern.pattern}
+                                onUpdateKey={(newKey) => {
+                                  setConfig(prev => {
+                                    if (!prev?.outbox_patterns) return null;
+                                    const newDynamicPatterns = { ...prev.outbox_patterns.dynamic_patterns };
+                                    const patternData = newDynamicPatterns[key];
+                                    delete newDynamicPatterns[key];
+                                    newDynamicPatterns[newKey] = patternData;
+                                    
+                                    return {
+                                      ...prev,
+                                      outbox_patterns: {
+                                        ...prev.outbox_patterns,
+                                        dynamic_patterns: newDynamicPatterns
+                                      }
+                                    };
+                                  });
+                                  setDynamicPatternOrder(prev => prev.map(k => k === key ? newKey : k));
+                                }}
+                                onUpdateTitle={(value) => updateConfig('outbox_patterns', `dynamic_${key}`, {
+                                  ...pattern,
+                                  title: value
+                                })}
+                                onUpdatePattern={(value) => updateConfig('outbox_patterns', `dynamic_${key}`, {
+                                  ...pattern,
+                                  pattern: value
+                                })}
+                                onDelete={() => removeDynamicPattern(key)}
+                              />
+                            );
+                          })}
+                          
+                          {dynamicPatternOrder.length === 0 && (
+                            <div className="text-center py-8 text-gray-500">
+                              <p>Belum ada pattern dinamis. Klik "Tambah Pattern" untuk menambahkan.</p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <p>Konfigurasi cutoff belum dimuat. Silakan refresh halaman.</p>
-                </div>
               )}
             </div>
           )}
 
-          {/* Demo Number Tab */}
-          {activeTab === 'demo_number' && (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-3">
-                  <div className="h-6 w-6 bg-gray-100 rounded-full flex items-center justify-center">
-                    <span className="text-gray-600 font-bold text-sm">DN</span>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Nomor Pengirim Demo</h3>
-                    <p className="text-sm text-gray-600">Konfigurasi nomor demo untuk bypass OTP</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={loadDemoNumber}
-                    className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors text-sm"
-                    disabled={loadingDemoNumber}
-                  >
-                    {loadingDemoNumber ? 'Refreshing...' : 'Refresh'}
-                  </button>
-                  <button
-                    onClick={async () => {
-                      try {
-                        const sessionKey = localStorage.getItem('adminSessionKey');
-                        if (!sessionKey) {
-                          setMessage({ type: 'error', text: 'Session key not found. Please login again.' });
-                          return;
-                        }
-                        const apiUrl = await getApiUrl('/admin/demo-config/save');
-                        const res = await fetch(apiUrl, {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            'X-Token': X_TOKEN_VALUE,
-                            'Session-Key': sessionKey,
-                            'Auth-Seed': authSeed,
-                          },
-                          body: JSON.stringify({ demo_number: demoNumber || '' }),
-                        });
-                        const data = await res.json();
-                        if (res.ok && data.success) {
-                          setMessage({ type: 'success', text: 'Demo number saved' });
-                          loadDemoNumber();
-                        } else {
-                          setMessage({ type: 'error', text: data.message || 'Failed to save demo number' });
-                        }
-                      } catch (e) {
-                        setMessage({ type: 'error', text: 'Network error saving demo number' });
-                      }
-                    }}
-                    className="px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
-                  >
-                    Save
-                  </button>
-                </div>
-              </div>
-              <div>
-                {loadingDemoNumber ? (
-                  <span className="text-sm text-gray-500">Memuat...</span>
-                ) : (
-                  <div className="max-w-md">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Nomor Demo</label>
-                    <input
-                      type="text"
-                      value={demoNumber || ''}
-                      onChange={(e) => setDemoNumber(e.target.value)}
-                      placeholder="contoh: 085156880420 (kosongkan untuk menonaktifkan)"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Nomor ini akan di-normalisasi otomatis dan digunakan untuk bypass OTP saat login.</p>
-                    <p className="text-xs text-gray-500 mt-1">Pastikan akun demo sudah dibuat menggunakan nomor ini.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
