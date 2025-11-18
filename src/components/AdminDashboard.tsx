@@ -34,7 +34,7 @@ import {
 import { DynamicScreenConfig } from "../types";
 import { SAMPLE_CONFIG } from "../data/sampleConfig";
 import EditorLayout from "./EditorLayout";
-import { getApiUrl, X_TOKEN_VALUE } from "../config/api";
+import { getApiUrl, apiRequest, X_TOKEN_VALUE } from "../config/api";
 import MemberManagement, { MemberManagementRef } from "./MemberManagement";
 import TransactionManagement, { TransactionManagementRef } from "./TransactionManagement";
 import AnalyticsDashboard, { AnalyticsDashboardRef } from "./AnalyticsDashboard";
@@ -54,6 +54,12 @@ import SessionManager, { SessionManagerRef } from "./SessionManager";
 import { formatJSONForExport, formatJSONForAPI } from "../utils/jsonFormatter";
 import { preloadMembers } from "../utils/memberCache";
 import { preloadTransactions } from "../utils/transactionCache";
+import { preloadBroadcastClasses } from "../utils/broadcastCache";
+import { preloadChatConversations } from "../utils/chatCache";
+import { preloadAnalytics } from "../utils/analyticsCache";
+import { preloadSessions } from "../utils/sessionCache";
+import { useGlobalChatWebSocket } from "../hooks/useGlobalChatWebSocket";
+import { getCachedConversations } from "../utils/chatCache";
 
 interface AdminDashboardProps {
   authSeed: string;
@@ -162,6 +168,27 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     resolved: number;
   } | null>(null);
   const [chatConnectionStatus, setChatConnectionStatus] = useState<string>("disconnected");
+  const [chatUnreadCount, setChatUnreadCount] = useState<number>(0);
+  
+  // Global chat WebSocket for notifications even when chat screen is not active
+  const handleChatConversationUpdate = (conversations: any[]) => {
+    // Update unread count from conversations
+    const unreadCount = conversations.reduce(
+      (total, conv) => total + conv.unread_count_admin,
+      0,
+    );
+    setChatUnreadCount(unreadCount);
+  };
+
+  const handleChatUnreadCountChange = (count: number) => {
+    setChatUnreadCount(count);
+  };
+
+  const globalChatWebSocket = useGlobalChatWebSocket(
+    authSeed,
+    handleChatUnreadCountChange,
+    handleChatConversationUpdate,
+  );
 
   // Analytics dashboard ref
   const analyticsDashboardRef = useRef<AnalyticsDashboardRef>(null);
@@ -254,6 +281,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
     // Preload transaction data for cache-first pattern
     preloadTransactions(authSeed);
+    // Preload broadcast classes for cache-first pattern
+    preloadBroadcastClasses(authSeed);
+    // Preload chat conversations for cache-first pattern
+    preloadChatConversations(authSeed);
+    // Preload analytics data for cache-first pattern
+    preloadAnalytics(authSeed);
+    // Preload sessions for cache-first pattern
+    preloadSessions(authSeed);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -292,6 +327,33 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setChatConnectionStatus("disconnected");
     }
   }, [activeSection]);
+
+  // Initialize unread count from cache
+  useEffect(() => {
+    const cached = getCachedConversations();
+    if (cached) {
+      const unreadCount = cached.reduce(
+        (total, conv) => total + conv.unread_count_admin,
+        0,
+      );
+      setChatUnreadCount(unreadCount);
+    }
+  }, []);
+
+  // Track chat unread count for badge (fallback to ref if global WebSocket not available)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (chatManagementRef.current) {
+        const refCount = chatManagementRef.current.unreadCount || 0;
+        // Only update if it's different to avoid unnecessary re-renders
+        if (refCount !== chatUnreadCount) {
+          setChatUnreadCount(refCount);
+        }
+      }
+    }, 2000); // Check every 2 seconds as fallback
+
+    return () => clearInterval(interval);
+  }, [chatUnreadCount]);
 
   // Reset session stats when switching away from session-manager section
   useEffect(() => {
@@ -890,7 +952,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
           {
             id: "chat",
             label: "Customer Support",
-            icon: <MessageSquare className="h-5 w-5" />,
+            icon: (
+              <div className="relative">
+                <MessageSquare className="h-5 w-5" />
+                {chatUnreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center">
+                    {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
+                  </span>
+                )}
+              </div>
+            ),
             description: "Kelola percakapan dengan pelanggan",
             component: (
               <ChatManagement
@@ -1963,11 +2034,9 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
 
         // Load system status
         try {
-          const apiUrl = await getApiUrl("/admin/system-status");
-          const response = await fetch(apiUrl, {
+          const response = await apiRequest("/admin/system-status", {
             method: "POST",
             headers: {
-              "Content-Type": "application/json",
               "X-Token": X_TOKEN_VALUE,
             },
             body: JSON.stringify({
@@ -1975,6 +2044,10 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
               auth_seed: authSeed,
             }),
           });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
 
           const data = await response.json();
 
@@ -2019,7 +2092,10 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
             }));
           }
         } catch (error) {
-          console.error("Failed to fetch system status:", error);
+          // Only log non-network errors to reduce console spam
+          if (!(error instanceof TypeError && (error.message.includes("fetch") || error.message.includes("NetworkError") || error.message.includes("Failed to fetch"))) && !(error instanceof Error && error.name === "AbortError")) {
+            console.error("Failed to fetch system status:", error);
+          }
           setSystemStatus({
             serverStatus: "Offline",
             databaseStatus: "Unknown",
@@ -2042,11 +2118,9 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
 
         // Load dashboard stats
         try {
-          const statsApiUrl = await getApiUrl("/admin/dashboard-stats");
-          const statsResponse = await fetch(statsApiUrl, {
+          const statsResponse = await apiRequest("/admin/dashboard-stats", {
             method: "POST",
             headers: {
-              "Content-Type": "application/json",
               "X-Token": X_TOKEN_VALUE,
             },
             body: JSON.stringify({
@@ -2054,6 +2128,10 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
               auth_seed: authSeed,
             }),
           });
+
+          if (!statsResponse.ok) {
+            throw new Error(`HTTP ${statsResponse.status}`);
+          }
 
           const statsData = await statsResponse.json();
 
@@ -2066,7 +2144,10 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
             }));
           }
         } catch (error) {
-          console.error("Failed to fetch dashboard stats:", error);
+          // Only log non-network errors to reduce console spam
+          if (!(error instanceof TypeError && (error.message.includes("fetch") || error.message.includes("NetworkError") || error.message.includes("Failed to fetch"))) && !(error instanceof Error && error.name === "AbortError")) {
+            console.error("Failed to fetch dashboard stats:", error);
+          }
         } finally {
           // Mark stats as loaded
           setLoadingStates((prev) => ({ ...prev, stats: false }));
@@ -2074,20 +2155,23 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
 
         // Load transaction analytics
         try {
-          const analyticsApiUrl = await getApiUrl(
+          const analyticsResponse = await apiRequest(
             "/admin/transactions/analytics",
-          );
-          const analyticsResponse = await fetch(analyticsApiUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Token": X_TOKEN_VALUE,
+            {
+              method: "POST",
+              headers: {
+                "X-Token": X_TOKEN_VALUE,
+              },
+              body: JSON.stringify({
+                session_key: sessionKey,
+                auth_seed: authSeed,
+              }),
             },
-            body: JSON.stringify({
-              session_key: sessionKey,
-              auth_seed: authSeed,
-            }),
-          });
+          );
+
+          if (!analyticsResponse.ok) {
+            throw new Error(`HTTP ${analyticsResponse.status}`);
+          }
 
           const analyticsData = await analyticsResponse.json();
 
@@ -2098,7 +2182,10 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
             }));
           }
         } catch (error) {
-          console.error("Failed to fetch transaction analytics:", error);
+          // Only log non-network errors to reduce console spam
+          if (!(error instanceof TypeError && (error.message.includes("fetch") || error.message.includes("NetworkError") || error.message.includes("Failed to fetch"))) && !(error instanceof Error && error.name === "AbortError")) {
+            console.error("Failed to fetch transaction analytics:", error);
+          }
         } finally {
           // Mark transactions as loaded
           setLoadingStates((prev) => ({ ...prev, transactions: false }));
@@ -2106,11 +2193,9 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
 
         // Load license status
         try {
-          const licenseApiUrl = await getApiUrl("/admin/license-status");
-          const licenseResponse = await fetch(licenseApiUrl, {
+          const licenseResponse = await apiRequest("/admin/license-status", {
             method: "POST",
             headers: {
-              "Content-Type": "application/json",
               "X-Token": X_TOKEN_VALUE,
             },
             body: JSON.stringify({
@@ -2119,22 +2204,29 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
             }),
           });
 
+          if (!licenseResponse.ok) {
+            throw new Error(`HTTP ${licenseResponse.status}`);
+          }
+
           const licenseData = await licenseResponse.json();
 
           if (licenseData.success && licenseData.license_status) {
             setLicenseStatus(licenseData.license_status);
           } else {
-            console.error(
-              "Failed to fetch license status:",
-              licenseData.message,
-            );
             setLicenseStatus((prev) => ({
               ...prev,
               status_message: "Failed to load license status",
             }));
           }
         } catch (error) {
-          console.error("Failed to fetch license status:", error);
+          // Only log non-network errors to reduce console spam
+          if (error instanceof TypeError && (error.message.includes("fetch") || error.message.includes("NetworkError") || error.message.includes("Failed to fetch"))) {
+            // Network error - silently handle
+          } else if (error instanceof Error && error.name === "AbortError") {
+            // Timeout error - silently handle
+          } else {
+            console.error("Failed to fetch license status:", error);
+          }
           setLicenseStatus((prev) => ({
             ...prev,
             status_message: "Error loading license status",
@@ -2144,7 +2236,10 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
           setLoadingStates((prev) => ({ ...prev, licenseStatus: false }));
         }
       } catch (error) {
-        console.error("Failed to load dashboard stats:", error);
+        // Only log non-network errors to reduce console spam
+        if (!(error instanceof TypeError && (error.message.includes("fetch") || error.message.includes("NetworkError") || error.message.includes("Failed to fetch"))) && !(error instanceof Error && error.name === "AbortError")) {
+          console.error("Failed to load dashboard stats:", error);
+        }
         // Set offline status when network error occurs
         setSystemStatus({
           serverStatus: "Offline",
@@ -2195,11 +2290,9 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
 
     try {
       // Fetch real system status from backend
-      const apiUrl = await getApiUrl("/admin/system-status");
-      const response = await fetch(apiUrl, {
+      const response = await apiRequest("/admin/system-status", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
           "X-Token": X_TOKEN_VALUE,
         },
         body: JSON.stringify({
@@ -2207,6 +2300,10 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
           auth_seed: authSeed,
         }),
       });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
 
       const data = await response.json();
       console.log("System status response:", data);
@@ -2257,11 +2354,9 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
 
       // Fetch active sessions from dashboard stats (session table)
       try {
-        const statsApiUrl = await getApiUrl("/admin/dashboard-stats");
-        const statsResponse = await fetch(statsApiUrl, {
+        const statsResponse = await apiRequest("/admin/dashboard-stats", {
           method: "POST",
           headers: {
-            "Content-Type": "application/json",
             "X-Token": X_TOKEN_VALUE,
           },
           body: JSON.stringify({
@@ -2269,6 +2364,10 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
             auth_seed: authSeed,
           }),
         });
+
+        if (!statsResponse.ok) {
+          throw new Error(`HTTP ${statsResponse.status}`);
+        }
 
         const statsData = await statsResponse.json();
 
@@ -2281,7 +2380,10 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
           }));
         }
       } catch (error) {
-        console.error("Failed to fetch dashboard stats:", error);
+        // Only log non-network errors to reduce console spam
+        if (!(error instanceof TypeError && (error.message.includes("fetch") || error.message.includes("NetworkError") || error.message.includes("Failed to fetch"))) && !(error instanceof Error && error.name === "AbortError")) {
+          console.error("Failed to fetch dashboard stats:", error);
+        }
       } finally {
         // Mark stats as loaded
         setLoadingStates((prev) => ({ ...prev, stats: false }));
@@ -2289,20 +2391,23 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
 
       // Fetch today's transactions from TransactionManagement logic (working endpoint)
       try {
-        const analyticsApiUrl = await getApiUrl(
+        const analyticsResponse = await apiRequest(
           "/admin/transactions/analytics",
-        );
-        const analyticsResponse = await fetch(analyticsApiUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Token": X_TOKEN_VALUE,
+          {
+            method: "POST",
+            headers: {
+              "X-Token": X_TOKEN_VALUE,
+            },
+            body: JSON.stringify({
+              session_key: sessionKey,
+              auth_seed: authSeed,
+            }),
           },
-          body: JSON.stringify({
-            session_key: sessionKey,
-            auth_seed: authSeed,
-          }),
-        });
+        );
+
+        if (!analyticsResponse.ok) {
+          throw new Error(`HTTP ${analyticsResponse.status}`);
+        }
 
         const analyticsData = await analyticsResponse.json();
 
@@ -2313,7 +2418,10 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
           }));
         }
       } catch (error) {
-        console.error("Failed to fetch transaction analytics:", error);
+        // Only log non-network errors to reduce console spam
+        if (!(error instanceof TypeError && (error.message.includes("fetch") || error.message.includes("NetworkError") || error.message.includes("Failed to fetch"))) && !(error instanceof Error && error.name === "AbortError")) {
+          console.error("Failed to fetch transaction analytics:", error);
+        }
       } finally {
         // Mark transactions as loaded
         setLoadingStates((prev) => ({ ...prev, transactions: false }));
@@ -2321,11 +2429,9 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
 
       // Fetch license status
       try {
-        const licenseApiUrl = await getApiUrl("/admin/license-status");
-        const licenseResponse = await fetch(licenseApiUrl, {
+        const licenseResponse = await apiRequest("/admin/license-status", {
           method: "POST",
           headers: {
-            "Content-Type": "application/json",
             "X-Token": X_TOKEN_VALUE,
           },
           body: JSON.stringify({
@@ -2334,19 +2440,29 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
           }),
         });
 
+        if (!licenseResponse.ok) {
+          throw new Error(`HTTP ${licenseResponse.status}`);
+        }
+
         const licenseData = await licenseResponse.json();
 
         if (licenseData.success && licenseData.license_status) {
           setLicenseStatus(licenseData.license_status);
         } else {
-          console.error("Failed to fetch license status:", licenseData.message);
           setLicenseStatus((prev) => ({
             ...prev,
             status_message: "Failed to load license status",
           }));
         }
       } catch (error) {
-        console.error("Failed to fetch license status:", error);
+        // Only log non-network errors to reduce console spam
+        if (error instanceof TypeError && (error.message.includes("fetch") || error.message.includes("NetworkError") || error.message.includes("Failed to fetch"))) {
+          // Network error - silently handle
+        } else if (error instanceof Error && error.name === "AbortError") {
+          // Timeout error - silently handle
+        } else {
+          console.error("Failed to fetch license status:", error);
+        }
         setLicenseStatus((prev) => ({
           ...prev,
           status_message: "Error loading license status",
@@ -2356,7 +2472,10 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
         setLoadingStates((prev) => ({ ...prev, licenseStatus: false }));
       }
     } catch (error) {
-      console.error("Failed to refresh dashboard stats:", error);
+      // Only log non-network errors to reduce console spam
+      if (!(error instanceof TypeError && (error.message.includes("fetch") || error.message.includes("NetworkError") || error.message.includes("Failed to fetch"))) && !(error instanceof Error && error.name === "AbortError")) {
+        console.error("Failed to refresh dashboard stats:", error);
+      }
       // Set offline status when network error occurs
       setSystemStatus({
         serverStatus: "Offline",

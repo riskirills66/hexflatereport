@@ -19,7 +19,6 @@ import {
   Video,
   ExternalLink,
   ArrowLeft,
-  Bell,
 } from "lucide-react";
 import {
   getApiUrl,
@@ -28,6 +27,7 @@ import {
   API_ENDPOINTS,
 } from "../config/api";
 import { useWebSocket } from "../hooks/useWebSocket";
+import { getCachedConversations, getCachedMessages, setCachedConversations, setCachedMessages, mergeConversations, mergeMessages, getCachedLicenseStatus, setCachedLicenseStatus } from "../utils/chatCache";
 
 interface ChatManagementProps {
   authSeed: string;
@@ -43,6 +43,7 @@ export interface ChatManagementRef {
   ) => Promise<void>;
   showNotificationSettings: () => void;
   connectionStatus: string;
+  unreadCount: number;
 }
 
 interface ChatLicenseStatus {
@@ -256,7 +257,6 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
     // License status state
     const [licenseStatus, setLicenseStatus] =
       useState<ChatLicenseStatus | null>(null);
-    const [licenseLoading, setLicenseLoading] = useState(true);
     const [licenseError, setLicenseError] = useState<string | null>(null);
 
     const onConversationChangeRef = useRef(onConversationChange);
@@ -278,7 +278,6 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
     }, [selectedConversation]);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [newMessage, setNewMessage] = useState("");
-    const [loading, setLoading] = useState(true);
     const [sendingMessage, setSendingMessage] = useState(false);
     const [uploadingFile, setUploadingFile] = useState(false);
     const [pendingMessages, setPendingMessages] = useState<
@@ -401,6 +400,9 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
                 : conv,
             );
 
+            // Update cache
+            setCachedConversations(updated);
+
             // Show notification for new user messages
             if (newMsg.sender_type === "user") {
               const conversation = updated.find(
@@ -469,6 +471,7 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
           setConversations((prev) => {
             const exists = prev.some((conv) => conv.id === updatedConv.id);
 
+            let result;
             if (!exists) {
               isNewConversation = true;
               const newConv: ChatConversation = {
@@ -487,10 +490,10 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
                 last_message_sender: updatedConv.last_message_sender,
                 resolved: updatedConv.resolved || 0,
               };
-              return [newConv, ...prev];
+              result = [newConv, ...prev];
             } else {
               // Update existing conversation
-              const updated = prev.map((conv) =>
+              result = prev.map((conv) =>
                 conv.id === updatedConv.id
                   ? {
                       ...conv,
@@ -504,8 +507,11 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
                     }
                   : conv,
               );
-              return updated;
             }
+            
+            // Update cache
+            setCachedConversations(result);
+            return result;
           });
 
           if (isNewConversation) {
@@ -572,20 +578,15 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
     };
 
     useEffect(() => {
-      const timer = setTimeout(() => {
-        const url = getWebSocketUrl();
-        setWebSocketUrl(url || "");
-      }, 1000);
-
-      return () => clearTimeout(timer);
+      // Set WebSocket URL immediately to connect right away
+      const url = getWebSocketUrl();
+      setWebSocketUrl(url || "");
     }, [authSeed]);
 
     const {
       isConnected,
       connectionStatus,
       sendMessage: sendWebSocketMessage,
-      disconnect: disconnectWebSocket,
-      resetReconnection,
     } = useWebSocket({
       url: webSocketUrl && authSeed ? webSocketUrl : "", // Connect if we have both URL and authSeed
       onMessage: handleWebSocketMessage,
@@ -605,12 +606,16 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
       },
     });
 
+    // Calculate unread count
+    const unreadCount = conversations.reduce((total, conv) => total + conv.unread_count_admin, 0);
+
     // Expose selectedConversation and functions to parent (after connectionStatus is defined)
     useImperativeHandle(ref, () => ({
       selectedConversation,
       resolveConversation,
       showNotificationSettings: () => setShowNotificationSettings(true),
       connectionStatus,
+      unreadCount,
     }));
 
     useEffect(() => {
@@ -625,7 +630,6 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
         const sessionKey = localStorage.getItem("adminSessionKey");
         if (!sessionKey) {
           setLicenseError("No session key found");
-          setLicenseLoading(false);
           return;
         }
 
@@ -645,22 +649,39 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
 
         const data = await response.json();
         if (data.success && data.license_status) {
-          setLicenseStatus({
+          const newLicenseStatus = {
             is_licensed: data.license_status.chat_management_licensed || false,
             server_name: "server", // We don't have server name in this response
-          });
+          };
+          setLicenseStatus(newLicenseStatus);
+          // Update cache
+          setCachedLicenseStatus(newLicenseStatus);
         } else {
           setLicenseError(data.message || "Failed to load license status");
         }
       } catch (error) {
         console.error("Failed to load chat license status:", error);
         setLicenseError("Failed to load license status");
-      } finally {
-        setLicenseLoading(false);
       }
     };
 
     useEffect(() => {
+      // Load from cache immediately
+      const cachedConversations = getCachedConversations();
+      if (cachedConversations) {
+        setConversations(cachedConversations);
+        if (cachedConversations.length > 0 && !selectedConversation) {
+          setSelectedConversation(cachedConversations[0]);
+        }
+      }
+      
+      // Load license status from cache immediately
+      const cachedLicense = getCachedLicenseStatus();
+      if (cachedLicense) {
+        setLicenseStatus(cachedLicense);
+      }
+      
+      // Fetch fresh data in background
       loadChatLicenseStatus();
       loadConversations();
       loadNotificationSettings();
@@ -1099,8 +1120,8 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
       type: "newMessage" | "conversationUpdate" | "assignment" = "newMessage",
       showWhenFocused: boolean = false,
     ) => {
-      playNotificationSound();
-
+      // Sound is handled by global WebSocket hook in AdminDashboard
+      // Only show desktop notification if needed
       if (
         !notificationSettings.desktopNotifications ||
         !notificationSettings.notificationTypes[type]
@@ -1198,17 +1219,26 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
 
         const data = await response.json();
         if (data.success) {
-          const conversations = data.conversations || [];
-          setConversations(conversations);
+          const newConversations = data.conversations || [];
+          
+          // Merge/update conversations without rebuilding components
+          setConversations(prev => {
+            const merged = mergeConversations(prev, newConversations);
+            return merged;
+          });
+          
+          // Update cache
+          setCachedConversations(newConversations);
 
+          // Update selected conversation if it still exists
           if (selectedConversation) {
-            const stillExists = conversations.some(
+            const stillExists = newConversations.some(
               (conv: ChatConversation) => conv.id === selectedConversation.id,
             );
             if (!stillExists) {
               setSelectedConversation(null);
             } else {
-              const updated = conversations.find(
+              const updated = newConversations.find(
                 (conv: ChatConversation) => conv.id === selectedConversation.id,
               );
               if (updated) {
@@ -1217,14 +1247,12 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
             }
           }
 
-          if (conversations.length > 0 && !selectedConversation) {
-            setSelectedConversation(conversations[0]);
+          if (newConversations.length > 0 && !selectedConversation) {
+            setSelectedConversation(newConversations[0]);
           }
         }
       } catch (error) {
         console.error("Failed to load conversations:", error);
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -1279,6 +1307,12 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
     };
 
     const loadMessages = async (conversationId: string) => {
+      // Load from cache immediately
+      const cached = getCachedMessages(conversationId);
+      if (cached) {
+        setMessages(cached);
+      }
+      
       try {
         const sessionKey = localStorage.getItem("adminSessionKey");
         if (!sessionKey) return;
@@ -1302,16 +1336,28 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
         const data = await response.json();
         if (data.success) {
           // Reverse messages to show oldest first
-          setMessages(data.messages.reverse() || []);
+          const newMessages = (data.messages || []).reverse();
+          
+          // Merge/update messages without rebuilding components
+          setMessages(prev => {
+            const merged = mergeMessages(prev, newMessages);
+            return merged;
+          });
+          
+          // Update cache
+          setCachedMessages(conversationId, newMessages);
 
           // Clear unread count for this conversation in the conversations list
-          setConversations((prev) =>
-            prev.map((conv) =>
+          setConversations((prev) => {
+            const updated = prev.map((conv) =>
               conv.id === conversationId
                 ? { ...conv, unread_count_admin: 0 }
                 : conv,
-            ),
-          );
+            );
+            // Update cache
+            setCachedConversations(updated);
+            return updated;
+          });
         }
       } catch (error) {
         console.error("Failed to load messages:", error);
@@ -1666,15 +1712,6 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
         : "bg-red-100 text-red-800";
     };
 
-    // Show loading state while checking license
-    if (licenseLoading) {
-      return (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-        </div>
-      );
-    }
-
     // Show license error if failed to load
     if (licenseError) {
       return (
@@ -1715,13 +1752,6 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
       );
     }
 
-    if (loading) {
-      return (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-        </div>
-      );
-    }
 
     return (
       <div className="h-full flex bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">

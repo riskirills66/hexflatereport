@@ -1,4 +1,4 @@
-import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { RefreshCw, TrendingUp, TrendingDown, Activity, Package } from 'lucide-react';
 import { 
   LineChart, 
@@ -16,6 +16,7 @@ import {
   Cell
 } from 'recharts';
 import { getApiUrl, X_TOKEN_VALUE } from '../config/api';
+import { getCachedAnalytics, setCachedAnalytics, mergeTrendsData, mergeProductTrendsData } from '../utils/analyticsCache';
 
 interface AnalyticsDashboardProps {
   authSeed: string;
@@ -66,23 +67,20 @@ const COLORS = ['#10B981', '#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6', '#06B6D4'
 const AnalyticsDashboard = forwardRef<AnalyticsDashboardRef, AnalyticsDashboardProps>(({ authSeed }, ref) => {
   const [trendsData, setTrendsData] = useState<TransactionTrends | null>(null);
   const [productTrendsData, setProductTrendsData] = useState<ProductTrends | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  useEffect(() => {
-    fetchAnalyticsData();
-    fetchProductAnalyticsData();
-  }, [refreshKey]);
-
-  const fetchAnalyticsData = async () => {
-    setIsLoading(true);
-    setError(null);
+  const fetchAnalyticsData = async (background = false) => {
+    if (!background) {
+      setError(null);
+    }
     
     try {
       const sessionKey = localStorage.getItem('adminSessionKey');
       if (!sessionKey) {
-        setError('Kunci sesi tidak ditemukan. Silakan login lagi.');
+        if (!background) {
+          setError('Kunci sesi tidak ditemukan. Silakan login lagi.');
+        }
         return;
       }
 
@@ -102,19 +100,31 @@ const AnalyticsDashboard = forwardRef<AnalyticsDashboardRef, AnalyticsDashboardP
       const data = await response.json();
 
       if (data.success && data.analytics) {
-        setTrendsData(data.analytics);
+        // Merge/update trends data without rebuilding components
+        setTrendsData(prev => {
+          const merged = mergeTrendsData(prev, data.analytics);
+          
+          // Update cache with merged data
+          const cached = getCachedAnalytics();
+          const currentProductTrends = cached?.productTrendsData || null;
+          setCachedAnalytics(merged, currentProductTrends);
+          
+          return merged;
+        });
       } else {
-        setError(data.message || 'Gagal memuat data analitik');
+        if (!background) {
+          setError(data.message || 'Gagal memuat data analitik');
+        }
       }
     } catch (err) {
       console.error('Failed to fetch analytics:', err);
-      setError('Gagal memuat data analitik dari backend');
-    } finally {
-      setIsLoading(false);
+      if (!background) {
+        setError('Gagal memuat data analitik dari backend');
+      }
     }
   };
 
-  const fetchProductAnalyticsData = async () => {
+  const fetchProductAnalyticsData = async (_background = false) => {
     try {
       const sessionKey = localStorage.getItem('adminSessionKey');
       if (!sessionKey) {
@@ -148,12 +158,44 @@ const AnalyticsDashboard = forwardRef<AnalyticsDashboardRef, AnalyticsDashboardP
             success_rate: Number(product.success_rate) || 0,
           }))
         };
-        setProductTrendsData(validatedData);
+        
+        // Merge/update product trends data without rebuilding components
+        setProductTrendsData(prev => {
+          const merged = mergeProductTrendsData(prev, validatedData);
+          
+          // Update cache with merged data
+          const cached = getCachedAnalytics();
+          const currentTrends = cached?.trendsData || null;
+          setCachedAnalytics(currentTrends, merged);
+          
+          return merged;
+        });
       }
     } catch (err) {
       console.error('Failed to fetch product analytics:', err);
     }
   };
+
+  useEffect(() => {
+    // Load from cache immediately on mount
+    const cached = getCachedAnalytics();
+    if (cached) {
+      setTrendsData(cached.trendsData);
+      setProductTrendsData(cached.productTrendsData);
+    }
+    
+    // Fetch fresh data in background
+    fetchAnalyticsData(true);
+    fetchProductAnalyticsData(true);
+  }, []);
+
+  useEffect(() => {
+    // Fetch fresh data when refresh is triggered
+    if (refreshKey > 0) {
+      fetchAnalyticsData(false);
+      fetchProductAnalyticsData(false);
+    }
+  }, [refreshKey]);
 
   const refreshData = () => {
     setRefreshKey(prev => prev + 1);
@@ -172,17 +214,6 @@ const AnalyticsDashboard = forwardRef<AnalyticsDashboardRef, AnalyticsDashboardP
       day: 'numeric'
     });
   };
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-          <span className="ml-3 text-gray-600">Memuat data analitik...</span>
-        </div>
-      </div>
-    );
-  }
 
   if (error) {
     return (
@@ -399,7 +430,7 @@ const AnalyticsDashboard = forwardRef<AnalyticsDashboardRef, AnalyticsDashboardP
                     fill="#8884d8"
                     dataKey="value"
                   >
-                    {productTrendsData.top_products.slice(0, 8).map((product, index) => (
+                    {productTrendsData.top_products.slice(0, 8).map((_product, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>

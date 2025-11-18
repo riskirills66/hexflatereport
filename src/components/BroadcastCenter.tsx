@@ -2,6 +2,7 @@ import { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { getApiUrl, X_TOKEN_VALUE } from '../config/api';
 import RouteArgsEditor from './RouteArgsEditor';
 import { RouteArgs } from '../types';
+import { getCachedClasses, setCachedClasses, mergeClasses } from '../utils/broadcastCache';
 
 interface BroadcastCenterProps {
   authSeed: string;
@@ -31,31 +32,12 @@ const BroadcastCenter = forwardRef<BroadcastCenterRef, BroadcastCenterProps>(({ 
   const [routeArgs, setRouteArgs] = useState<RouteArgs | undefined>(undefined);
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
   const [availableClasses, setAvailableClasses] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [result, setResult] = useState<BroadcastResult | null>(null);
 
   const canSend = Boolean(title.trim() && message.trim() && !isSending);
 
-  useImperativeHandle(ref, () => ({
-    sendBroadcast: handleSendBroadcast,
-    isSending,
-    canSend
-  }));
-
-  useEffect(() => {
-    loadAvailableClasses();
-  }, []);
-
-  // Notify parent component of state changes
-  useEffect(() => {
-    if (onStateChange) {
-      onStateChange(canSend, isSending);
-    }
-  }, [canSend, isSending, onStateChange]);
-
   const loadAvailableClasses = async () => {
-    setIsLoading(true);
     try {
       const sessionKey = localStorage.getItem('adminSessionKey');
       if (!sessionKey) {
@@ -76,14 +58,43 @@ const BroadcastCenter = forwardRef<BroadcastCenterRef, BroadcastCenterProps>(({ 
 
       const data = await response.json();
       if (data.success && data.classes) {
-        setAvailableClasses(data.classes);
+        // Merge/update classes without rebuilding components
+        setAvailableClasses(prev => {
+          const merged = mergeClasses(prev, data.classes || []);
+          return merged;
+        });
+        
+        // Update cache
+        setCachedClasses(data.classes);
       }
     } catch (error) {
       console.error('Failed to load classes:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
+
+  useImperativeHandle(ref, () => ({
+    sendBroadcast: handleSendBroadcast,
+    isSending,
+    canSend
+  }));
+
+  useEffect(() => {
+    // Load from cache immediately on mount
+    const cached = getCachedClasses();
+    if (cached) {
+      setAvailableClasses(cached);
+    }
+    
+    // Fetch fresh data in background
+    loadAvailableClasses();
+  }, []);
+
+  // Notify parent component of state changes
+  useEffect(() => {
+    if (onStateChange) {
+      onStateChange(canSend, isSending);
+    }
+  }, [canSend, isSending, onStateChange]);
 
   const handleClassToggle = (className: string) => {
     setSelectedClasses(prev => 
@@ -285,26 +296,22 @@ const BroadcastCenter = forwardRef<BroadcastCenterRef, BroadcastCenterProps>(({ 
               Pilih kode level reseller tertentu, atau kosongkan untuk mengirim ke semua reseller
             </p>
             
-            {isLoading ? (
-              <div className="text-xs text-gray-500">Memuat kode level...</div>
-            ) : (
-              <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2">
-                {availableClasses.map((className) => (
-                  <label
-                    key={className}
-                    className="flex items-center space-x-1.5 px-2 py-1.5 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer text-xs"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedClasses.includes(className)}
-                      onChange={() => handleClassToggle(className)}
-                      className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 w-3 h-3 flex-shrink-0"
-                    />
-                    <span className="text-gray-700 truncate">{className}</span>
-                  </label>
-                ))}
-              </div>
-            )}
+            <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2">
+              {availableClasses.map((className) => (
+                <label
+                  key={className}
+                  className="flex items-center space-x-1.5 px-2 py-1.5 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer text-xs"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedClasses.includes(className)}
+                    onChange={() => handleClassToggle(className)}
+                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 w-3 h-3 flex-shrink-0"
+                  />
+                  <span className="text-gray-700 truncate">{className}</span>
+                </label>
+              ))}
+            </div>
             
             {selectedClasses.length > 0 && (
               <div className="mt-2">
@@ -314,7 +321,7 @@ const BroadcastCenter = forwardRef<BroadcastCenterRef, BroadcastCenterProps>(({ 
               </div>
             )}
             
-            {availableClasses.length === 0 && !isLoading && (
+            {availableClasses.length === 0 && (
               <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mt-2">
                 <p className="text-xs text-yellow-700">
                   Tidak ada kode level reseller ditemukan. Broadcast akan dikirim ke semua reseller.

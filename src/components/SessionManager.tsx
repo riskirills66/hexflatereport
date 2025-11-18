@@ -1,7 +1,8 @@
-import React, { useEffect, useState, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useState, forwardRef, useImperativeHandle, useCallback, useRef } from 'react';
 import { getApiUrl, X_TOKEN_VALUE } from '../config/api';
 import { Spinner } from '../styles';
-import { Search, Shield, XCircle, RefreshCw, Calendar, Smartphone, Hash } from 'lucide-react';
+import { Search, Shield, XCircle, Calendar, Smartphone, Hash } from 'lucide-react';
+import { getCachedSessions, setCachedSessions, mergeSessions, appendSessions } from '../utils/sessionCache';
 
 interface AdminSessionItem {
   session_key: string;
@@ -33,7 +34,6 @@ export interface SessionManagerRef {
 
 const SessionManager = forwardRef<SessionManagerRef, SessionManagerProps>(({ authSeed, onStatsChange }, ref) => {
   const [sessions, setSessions] = useState<AdminSessionItem[]>([]);
-  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
   // Filters
@@ -51,28 +51,43 @@ const SessionManager = forwardRef<SessionManagerRef, SessionManagerProps>(({ aut
 
   const [togglingSafety, setTogglingSafety] = useState<Set<string>>(new Set());
   const [deletingSessions, setDeletingSessions] = useState<Set<string>>(new Set());
+  const isFetchingRef = useRef(false);
 
+  const cursorRef = useRef<string | undefined>(undefined);
+  const fetchSessionsRef = useRef<((isInitial?: boolean, background?: boolean) => Promise<void>) | null>(null);
+  
   useEffect(() => {
-    // Reset cursor and fetch fresh data when filters change
-    setCursor(undefined);
-    setSessions([]);
-    fetchSessions(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm, safetyFilter, fromDate, toDate]);
+    cursorRef.current = cursor;
+  }, [cursor]);
 
-  const fetchSessions = async (isInitial = false) => {
-    if (isInitial) {
-      setLoading(true);
-    } else {
+  const fetchSessions = useCallback(async (isInitial = false, background = false) => {
+    // Prevent concurrent fetches
+    if (isFetchingRef.current && background) {
+      return;
+    }
+    isFetchingRef.current = true;
+    if (!background && isInitial) {
+      setIsLoadingMore(false);
+    } else if (!isInitial) {
       setIsLoadingMore(true);
     }
     
     try {
       const sessionKey = localStorage.getItem('adminSessionKey');
       if (!sessionKey) {
-        setMessage('Kunci sesi tidak ditemukan. Silakan login lagi.');
+        if (!background) {
+          setMessage('Kunci sesi tidak ditemukan. Silakan login lagi.');
+        }
         return;
       }
+
+      const filters = {
+        searchTerm,
+        safetyFilter,
+        fromDate,
+        toDate,
+        limit,
+      };
 
       const params = new URLSearchParams({
         limit: String(limit),
@@ -81,7 +96,7 @@ const SessionManager = forwardRef<SessionManagerRef, SessionManagerProps>(({ aut
       if (safetyFilter !== 'all') params.set('safety', safetyFilter === 'safe' ? '1' : '0');
       if (fromDate) params.set('from', `${fromDate} 00:00:00`);
       if (toDate) params.set('to', `${toDate} 23:59:59`);
-      if (!isInitial && cursor) params.set('cursor', cursor);
+      if (!isInitial && cursorRef.current) params.set('cursor', cursorRef.current);
 
       const apiUrl = await getApiUrl(`/admin/sessions?${params.toString()}`);
       const response = await fetch(apiUrl, {
@@ -99,36 +114,119 @@ const SessionManager = forwardRef<SessionManagerRef, SessionManagerProps>(({ aut
         const sanitized = (data.sessions || []).filter(s => s.id && s.device_model && s.imei);
         
         if (isInitial) {
-          setSessions(sanitized);
+          // Merge/update sessions without rebuilding components
+          setSessions(prev => {
+            const merged = mergeSessions(prev, sanitized);
+            return merged;
+          });
         } else {
-          setSessions(prev => [...prev, ...sanitized]);
+          // Append for pagination
+          setSessions(prev => {
+            const appended = appendSessions(prev, sanitized);
+            return appended;
+          });
         }
         
         setTotal(data.total || 0);
         setHasMore(data.has_more || false);
         setCursor(data.next_cursor);
+        
+        // Update cache for initial load
+        if (isInitial) {
+          setCachedSessions(filters, {
+            sessions: sanitized,
+            total: data.total || 0,
+            hasMore: data.has_more || false,
+            nextCursor: data.next_cursor,
+          });
+        }
       } else {
-        setMessage(data.message || 'Gagal memuat sesi');
+        if (!background) {
+          setMessage(data.message || 'Gagal memuat sesi');
+        }
       }
     } catch (e) {
-      setMessage('Gagal memuat sesi');
+      if (!background) {
+        setMessage('Gagal memuat sesi');
+      }
     } finally {
-      setLoading(false);
       setIsLoadingMore(false);
+      isFetchingRef.current = false;
     }
-  };
+  }, [searchTerm, safetyFilter, fromDate, toDate, limit, authSeed]);
+
+  useEffect(() => {
+    fetchSessionsRef.current = fetchSessions;
+  }, [fetchSessions]);
+
+  const lastFiltersRef = useRef<string>('');
+  const isInitialMountRef = useRef(true);
+  const filterEffectMountedRef = useRef(false);
+
+  useEffect(() => {
+    // Prevent running if already mounted and filters haven't changed
+    const filterKey = `${searchTerm}_${safetyFilter}_${fromDate}_${toDate}_${limit}`;
+    
+    if (filterEffectMountedRef.current && lastFiltersRef.current === filterKey) {
+      return;
+    }
+    
+    filterEffectMountedRef.current = true;
+    lastFiltersRef.current = filterKey;
+    
+    const filters = {
+      searchTerm,
+      safetyFilter,
+      fromDate,
+      toDate,
+      limit,
+    };
+    
+    // Load from cache immediately
+    const cached = getCachedSessions(filters);
+    if (cached) {
+      // Use functional updates to avoid dependency issues
+      setSessions(() => cached.sessions);
+      setTotal(() => cached.total);
+      setHasMore(() => cached.hasMore);
+      setCursor(() => cached.nextCursor);
+    } else if (!isInitialMountRef.current) {
+      // Only clear state if not initial mount (filters changed)
+      setSessions(() => []);
+      setTotal(() => 0);
+      setHasMore(() => false);
+      setCursor(() => undefined);
+    }
+    
+    // Fetch fresh data in background - use a longer delay to ensure state is settled
+    const delay = isInitialMountRef.current ? 200 : 500;
+    const timer = setTimeout(() => {
+      if (!isFetchingRef.current && fetchSessionsRef.current) {
+        fetchSessionsRef.current(true, true);
+      }
+    }, delay);
+    
+    isInitialMountRef.current = false;
+    
+    return () => {
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, safetyFilter, fromDate, toDate]);
+
 
   // Notify parent when sessions or total changes
   useEffect(() => {
     if (onStatsChange) {
       onStatsChange(total, sessions.length);
     }
-  }, [total, sessions.length, onStatsChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [total, sessions.length]);
 
   const refreshData = () => {
     setCursor(undefined);
     setSessions([]);
-    fetchSessions(true);
+    fetchSessions(true, false);
   };
 
   useImperativeHandle(ref, () => ({
@@ -297,15 +395,7 @@ const SessionManager = forwardRef<SessionManagerRef, SessionManagerProps>(({ aut
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center">
-            <div className="mx-auto mb-4">
-              <Spinner size="lg" color="primary" />
-            </div>
-            <p className="text-gray-600">Memuat sesi...</p>
-          </div>
-        ) : (
-          <>
+        <>
             <div className="overflow-x-auto">
               <div>
                 {(() => {
@@ -409,8 +499,7 @@ const SessionManager = forwardRef<SessionManagerRef, SessionManagerProps>(({ aut
                 </button>
               </div>
             )}
-          </>
-        )}
+        </>
       </div>
     </div>
   );

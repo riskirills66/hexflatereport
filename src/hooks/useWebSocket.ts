@@ -99,7 +99,12 @@ export const useWebSocket = ({
       };
 
       wsRef.current.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        // Only log if we haven't exceeded max reconnect attempts
+        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+          // Silently handle connection errors during reconnection attempts
+        } else {
+          console.error('WebSocket error:', error);
+        }
         setConnectionStatus('error');
         onError?.(error);
       };
