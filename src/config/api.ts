@@ -92,18 +92,19 @@ export async function getApiUrl(path: string): Promise<string> {
 }
 
 /**
- * Make an API request with automatic endpoint selection
+ * Make an API request with automatic endpoint selection and retry logic
  */
 export async function apiRequest(
   path: string,
   options: RequestInit = {},
+  retries: number = 2,
 ): Promise<Response> {
   const apiUrl = await getApiUrl(path);
   
   // Create abort controller for timeout if no signal is provided
   const userSignal = options.signal;
   const controller = userSignal ? null : new AbortController();
-  const timeoutId = controller ? setTimeout(() => controller.abort(), 10000) : null; // 10 second timeout
+  const timeoutId = controller ? setTimeout(() => controller.abort(), 8000) : null; // 8 second timeout
   
   // Extract headers and body from options to merge properly
   const { headers: optionsHeaders, body, ...restOptions } = options;
@@ -131,20 +132,48 @@ export async function apiRequest(
     }
   }
   
-  try {
-    const response = await fetch(apiUrl, {
-      ...restOptions,
-      method: options.method || "GET",
-      headers,
-      body,
-      signal: userSignal || controller?.signal,
-    });
-    if (timeoutId) clearTimeout(timeoutId);
-    return response;
-  } catch (error) {
-    if (timeoutId) clearTimeout(timeoutId);
-    throw error;
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(apiUrl, {
+        ...restOptions,
+        method: options.method || "GET",
+        headers,
+        body,
+        signal: userSignal || controller?.signal,
+      });
+      
+      if (timeoutId) clearTimeout(timeoutId);
+      
+      // Retry on 5xx errors (server errors) but not on 4xx (client errors)
+      if (response.status >= 500 && attempt < retries) {
+        const delay = Math.min(1000 * Math.pow(2, attempt), 3000); // Exponential backoff, max 3s
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      
+      return response;
+    } catch (error) {
+      lastError = error as Error;
+      
+      // Don't retry on abort errors (timeouts/user cancellation)
+      if (error instanceof Error && error.name === 'AbortError') {
+        if (timeoutId) clearTimeout(timeoutId);
+        throw error;
+      }
+      
+      // Retry on network errors
+      if (attempt < retries) {
+        const delay = Math.min(1000 * Math.pow(2, attempt), 3000);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+    }
   }
+  
+  if (timeoutId) clearTimeout(timeoutId);
+  throw lastError || new Error('Request failed after retries');
 }
 
 // Export the endpoints for reference

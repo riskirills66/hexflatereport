@@ -277,51 +277,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   useEffect(() => {
-    loadConfigFromBackend();
-    fetchCurrentAdminInfo();
-    loadAvailableMenus();
-    loadChatLicenseStatus();
-    // Preload member data for cache-first pattern
-    preloadMembers(authSeed, {
-      searchTerm: '',
-      statusFilter: 'all',
-      levelFilter: '',
-      verificationFilter: 'all',
+    // Load critical data first (parallel)
+    Promise.all([
+      loadConfigFromBackend(),
+      fetchCurrentAdminInfo(),
+      loadAvailableMenus(),
+      loadChatLicenseStatus(),
+    ]).catch((error) => {
+      console.error("Failed to load initial data:", error);
     });
-    // Preload transaction data for cache-first pattern
-    preloadTransactions(authSeed);
-    // Preload broadcast classes for cache-first pattern
-    preloadBroadcastClasses(authSeed);
-    // Preload chat conversations for cache-first pattern
-    preloadChatConversations(authSeed);
-    // Preload analytics data for cache-first pattern
-    preloadAnalytics(authSeed);
-    // Preload sessions for cache-first pattern
-    preloadSessions(authSeed);
-    // Preload system settings for cache-first pattern
-    preloadSystemSettings(authSeed);
-    // Preload hadiah config for cache-first pattern
-    preloadHadiahConfig(authSeed);
-    // Preload promo config for cache-first pattern
-    preloadPromoConfig(authSeed);
-    // Preload assets for cache-first pattern
-    preloadAssets(authSeed, { page: 1, searchTerm: '' });
-    // Preload markdown files for cache-first pattern
-    preloadMarkdownFiles(authSeed);
-    // Preload privacy policy for cache-first pattern
-    preloadPrivacyPolicy(authSeed);
-    // Preload feedback for cache-first pattern
-    preloadFeedback(authSeed, { page: 1, searchTerm: '' });
-    // Preload system logs for cache-first pattern
-    preloadSystemLogs(authSeed, {
-      searchTerm: '',
-      actionType: '',
-      adminUser: '',
-      dateFrom: '',
-      dateTo: '',
-    });
-    // Preload security management for cache-first pattern
-    preloadSecurityManagement(authSeed);
+
+    // Lazy load other data only when section is accessed
+    // This reduces initial load time and prevents overwhelming the backend
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -338,6 +305,110 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
   useEffect(() => {
     // This will trigger a re-render when chatLicenseStatus changes
   }, [chatLicenseStatus]);
+
+  // Lazy load data when section is accessed
+  useEffect(() => {
+    if (activeSection === "users") {
+      preloadMembers(authSeed, {
+        searchTerm: '',
+        statusFilter: 'all',
+        levelFilter: '',
+        verificationFilter: 'all',
+      }).catch(console.error);
+    } else {
+      setMemberStats(null);
+    }
+  }, [activeSection, authSeed]);
+
+  useEffect(() => {
+    if (activeSection === "transactions") {
+      preloadTransactions(authSeed).catch(console.error);
+    }
+  }, [activeSection, authSeed]);
+
+  useEffect(() => {
+    if (activeSection === "notifications") {
+      preloadBroadcastClasses(authSeed).catch(console.error);
+    }
+  }, [activeSection, authSeed]);
+
+  useEffect(() => {
+    if (activeSection === "chat") {
+      preloadChatConversations(authSeed).catch(console.error);
+    }
+  }, [activeSection, authSeed]);
+
+  useEffect(() => {
+    if (activeSection === "analytics") {
+      preloadAnalytics(authSeed).catch(console.error);
+    }
+  }, [activeSection, authSeed]);
+
+  useEffect(() => {
+    if (activeSection === "session-manager") {
+      preloadSessions(authSeed).catch(console.error);
+    }
+  }, [activeSection, authSeed]);
+
+  useEffect(() => {
+    if (activeSection === "system") {
+      preloadSystemSettings(authSeed).catch(console.error);
+    }
+  }, [activeSection, authSeed]);
+
+  useEffect(() => {
+    if (activeSection === "hadiah") {
+      preloadHadiahConfig(authSeed).catch(console.error);
+    }
+  }, [activeSection, authSeed]);
+
+  useEffect(() => {
+    if (activeSection === "promo") {
+      preloadPromoConfig(authSeed).catch(console.error);
+    }
+  }, [activeSection, authSeed]);
+
+  useEffect(() => {
+    if (activeSection === "assets") {
+      preloadAssets(authSeed, { page: 1, searchTerm: '' }).catch(console.error);
+    }
+  }, [activeSection, authSeed]);
+
+  useEffect(() => {
+    if (activeSection === "markdown-editor") {
+      preloadMarkdownFiles(authSeed).catch(console.error);
+    }
+  }, [activeSection, authSeed]);
+
+  useEffect(() => {
+    if (activeSection === "privacy-policy") {
+      preloadPrivacyPolicy(authSeed).catch(console.error);
+    }
+  }, [activeSection, authSeed]);
+
+  useEffect(() => {
+    if (activeSection === "feedback-viewer") {
+      preloadFeedback(authSeed, { page: 1, searchTerm: '' }).catch(console.error);
+    }
+  }, [activeSection, authSeed]);
+
+  useEffect(() => {
+    if (activeSection === "logs") {
+      preloadSystemLogs(authSeed, {
+        searchTerm: '',
+        actionType: '',
+        adminUser: '',
+        dateFrom: '',
+        dateTo: '',
+      }).catch(console.error);
+    }
+  }, [activeSection, authSeed]);
+
+  useEffect(() => {
+    if (activeSection === "security") {
+      preloadSecurityManagement(authSeed).catch(console.error);
+    }
+  }, [activeSection, authSeed]);
 
   // Reset member stats when switching away from users section
   useEffect(() => {
@@ -2051,39 +2122,43 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
 
   useEffect(() => {
     const loadDashboardStats = async () => {
-      try {
-        // Fetch real system status from backend
-        const sessionKey = localStorage.getItem("adminSessionKey");
-        if (!sessionKey) {
-          console.error("No session key found");
-          setLoadingStates({
-            systemStatus: false,
-            stats: false,
-            transactions: false,
-            licenseStatus: false,
-          });
-          return;
-        }
+      const sessionKey = localStorage.getItem("adminSessionKey");
+      if (!sessionKey) {
+        console.error("No session key found");
+        setLoadingStates({
+          systemStatus: false,
+          stats: false,
+          transactions: false,
+          licenseStatus: false,
+        });
+        return;
+      }
 
-        // Load system status
+      const requestBody = {
+        session_key: sessionKey,
+        auth_seed: authSeed,
+      };
+
+      const requestOptions = {
+        method: "POST" as const,
+        headers: {
+          "X-Token": X_TOKEN_VALUE,
+        },
+        body: JSON.stringify(requestBody),
+      };
+
+      // Parallelize all API calls for faster loading
+      const [systemStatusRes, statsRes, analyticsRes, licenseRes] = await Promise.allSettled([
+        apiRequest("/admin/system-status", requestOptions, 1),
+        apiRequest("/admin/dashboard-stats", requestOptions, 1),
+        apiRequest("/admin/transactions/analytics", requestOptions, 1),
+        apiRequest("/admin/license-status", requestOptions, 1),
+      ]);
+
+      // Handle system status
+      if (systemStatusRes.status === "fulfilled" && systemStatusRes.value.ok) {
         try {
-          const response = await apiRequest("/admin/system-status", {
-            method: "POST",
-            headers: {
-              "X-Token": X_TOKEN_VALUE,
-            },
-            body: JSON.stringify({
-              session_key: sessionKey,
-              auth_seed: authSeed,
-            }),
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-          }
-
-          const data = await response.json();
-
+          const data = await systemStatusRes.value.json();
           if (data.success && data.status) {
             const status = data.status;
             setSystemStatus({
@@ -2097,38 +2172,15 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
               totalRequests: status.total_requests,
               monthlyAppSuccessTrx: status.monthly_app_success_trx || 0,
             });
-
-            // Update dashboard health based on system status
             setStats((prevStats) => ({
               ...prevStats,
-              systemHealth:
-                status.server_status === "Online" ? "healthy" : "critical",
+              systemHealth: status.server_status === "Online" ? "healthy" : "critical",
             }));
           } else {
-            // Backend is not responding or returned error
-            setSystemStatus({
-              serverStatus: "Offline",
-              databaseStatus: "Unknown",
-              apiResponseTime: "N/A",
-              lastBackup: "N/A",
-              memoryUsage: 0,
-              cpuUsage: 0,
-              activeConnections: 0,
-              totalRequests: 0,
-              monthlyAppSuccessTrx: 0,
-            });
-
-            // Set critical health when backend is offline
-            setStats((prevStats) => ({
-              ...prevStats,
-              systemHealth: "critical",
-            }));
+            throw new Error("Invalid response");
           }
         } catch (error) {
-          // Only log non-network errors to reduce console spam
-          if (!(error instanceof TypeError && (error.message.includes("fetch") || error.message.includes("NetworkError") || error.message.includes("Failed to fetch"))) && !(error instanceof Error && error.name === "AbortError")) {
-            console.error("Failed to fetch system status:", error);
-          }
+          console.error("Failed to parse system status:", error);
           setSystemStatus({
             serverStatus: "Offline",
             databaseStatus: "Unknown",
@@ -2144,136 +2196,8 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
             ...prevStats,
             systemHealth: "critical",
           }));
-        } finally {
-          // Mark system status as loaded
-          setLoadingStates((prev) => ({ ...prev, systemStatus: false }));
         }
-
-        // Load dashboard stats
-        try {
-          const statsResponse = await apiRequest("/admin/dashboard-stats", {
-            method: "POST",
-            headers: {
-              "X-Token": X_TOKEN_VALUE,
-            },
-            body: JSON.stringify({
-              session_key: sessionKey,
-              auth_seed: authSeed,
-            }),
-          });
-
-          if (!statsResponse.ok) {
-            throw new Error(`HTTP ${statsResponse.status}`);
-          }
-
-          const statsData = await statsResponse.json();
-
-          if (statsData.success && statsData.stats) {
-            const dashboardStats = statsData.stats;
-            setStats((prevStats) => ({
-              ...prevStats,
-              totalResellers: dashboardStats.total_resellers,
-              activeSessions: dashboardStats.active_sessions,
-            }));
-          }
-        } catch (error) {
-          // Only log non-network errors to reduce console spam
-          if (!(error instanceof TypeError && (error.message.includes("fetch") || error.message.includes("NetworkError") || error.message.includes("Failed to fetch"))) && !(error instanceof Error && error.name === "AbortError")) {
-            console.error("Failed to fetch dashboard stats:", error);
-          }
-        } finally {
-          // Mark stats as loaded
-          setLoadingStates((prev) => ({ ...prev, stats: false }));
-        }
-
-        // Load transaction analytics
-        try {
-          const analyticsResponse = await apiRequest(
-            "/admin/transactions/analytics",
-            {
-              method: "POST",
-              headers: {
-                "X-Token": X_TOKEN_VALUE,
-              },
-              body: JSON.stringify({
-                session_key: sessionKey,
-                auth_seed: authSeed,
-              }),
-            },
-          );
-
-          if (!analyticsResponse.ok) {
-            throw new Error(`HTTP ${analyticsResponse.status}`);
-          }
-
-          const analyticsData = await analyticsResponse.json();
-
-          if (analyticsData.success && analyticsData.analytics) {
-            setStats((prevStats) => ({
-              ...prevStats,
-              todayTransactions: analyticsData.analytics.total_today || 0,
-            }));
-          }
-        } catch (error) {
-          // Only log non-network errors to reduce console spam
-          if (!(error instanceof TypeError && (error.message.includes("fetch") || error.message.includes("NetworkError") || error.message.includes("Failed to fetch"))) && !(error instanceof Error && error.name === "AbortError")) {
-            console.error("Failed to fetch transaction analytics:", error);
-          }
-        } finally {
-          // Mark transactions as loaded
-          setLoadingStates((prev) => ({ ...prev, transactions: false }));
-        }
-
-        // Load license status
-        try {
-          const licenseResponse = await apiRequest("/admin/license-status", {
-            method: "POST",
-            headers: {
-              "X-Token": X_TOKEN_VALUE,
-            },
-            body: JSON.stringify({
-              session_key: sessionKey,
-              auth_seed: authSeed,
-            }),
-          });
-
-          if (!licenseResponse.ok) {
-            throw new Error(`HTTP ${licenseResponse.status}`);
-          }
-
-          const licenseData = await licenseResponse.json();
-
-          if (licenseData.success && licenseData.license_status) {
-            setLicenseStatus(licenseData.license_status);
-          } else {
-            setLicenseStatus((prev) => ({
-              ...prev,
-              status_message: "Failed to load license status",
-            }));
-          }
-        } catch (error) {
-          // Only log non-network errors to reduce console spam
-          if (error instanceof TypeError && (error.message.includes("fetch") || error.message.includes("NetworkError") || error.message.includes("Failed to fetch"))) {
-            // Network error - silently handle
-          } else if (error instanceof Error && error.name === "AbortError") {
-            // Timeout error - silently handle
-          } else {
-            console.error("Failed to fetch license status:", error);
-          }
-          setLicenseStatus((prev) => ({
-            ...prev,
-            status_message: "Error loading license status",
-          }));
-        } finally {
-          // Mark license status as loaded
-          setLoadingStates((prev) => ({ ...prev, licenseStatus: false }));
-        }
-      } catch (error) {
-        // Only log non-network errors to reduce console spam
-        if (!(error instanceof TypeError && (error.message.includes("fetch") || error.message.includes("NetworkError") || error.message.includes("Failed to fetch"))) && !(error instanceof Error && error.name === "AbortError")) {
-          console.error("Failed to load dashboard stats:", error);
-        }
-        // Set offline status when network error occurs
+      } else {
         setSystemStatus({
           serverStatus: "Offline",
           databaseStatus: "Unknown",
@@ -2285,20 +2209,73 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
           totalRequests: 0,
           monthlyAppSuccessTrx: 0,
         });
-        // Set critical system health when backend is offline
-        setStats({
-          totalResellers: 0,
-          todayTransactions: 0,
-          activeSessions: 0,
+        setStats((prevStats) => ({
+          ...prevStats,
           systemHealth: "critical",
-        });
-        setLoadingStates({
-          stats: false,
-          systemStatus: false,
-          transactions: false,
-          licenseStatus: false,
-        });
+        }));
       }
+      setLoadingStates((prev) => ({ ...prev, systemStatus: false }));
+
+      // Handle dashboard stats
+      if (statsRes.status === "fulfilled" && statsRes.value.ok) {
+        try {
+          const statsData = await statsRes.value.json();
+          if (statsData.success && statsData.stats) {
+            const dashboardStats = statsData.stats;
+            setStats((prevStats) => ({
+              ...prevStats,
+              totalResellers: dashboardStats.total_resellers,
+              activeSessions: dashboardStats.active_sessions,
+            }));
+          }
+        } catch (error) {
+          console.error("Failed to parse dashboard stats:", error);
+        }
+      }
+      setLoadingStates((prev) => ({ ...prev, stats: false }));
+
+      // Handle transaction analytics
+      if (analyticsRes.status === "fulfilled" && analyticsRes.value.ok) {
+        try {
+          const analyticsData = await analyticsRes.value.json();
+          if (analyticsData.success && analyticsData.analytics) {
+            setStats((prevStats) => ({
+              ...prevStats,
+              todayTransactions: analyticsData.analytics.total_today || 0,
+            }));
+          }
+        } catch (error) {
+          console.error("Failed to parse transaction analytics:", error);
+        }
+      }
+      setLoadingStates((prev) => ({ ...prev, transactions: false }));
+
+      // Handle license status
+      if (licenseRes.status === "fulfilled" && licenseRes.value.ok) {
+        try {
+          const licenseData = await licenseRes.value.json();
+          if (licenseData.success && licenseData.license_status) {
+            setLicenseStatus(licenseData.license_status);
+          } else {
+            setLicenseStatus((prev) => ({
+              ...prev,
+              status_message: "Failed to load license status",
+            }));
+          }
+        } catch (error) {
+          console.error("Failed to parse license status:", error);
+          setLicenseStatus((prev) => ({
+            ...prev,
+            status_message: "Error loading license status",
+          }));
+        }
+      } else {
+        setLicenseStatus((prev) => ({
+          ...prev,
+          status_message: "Error loading license status",
+        }));
+      }
+      setLoadingStates((prev) => ({ ...prev, licenseStatus: false }));
     };
 
     loadDashboardStats();
@@ -2313,7 +2290,6 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
       return;
     }
 
-    // Set loading states for refresh
     setLoadingStates({
       stats: true,
       systemStatus: true,
@@ -2321,89 +2297,59 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
       licenseStatus: true,
     });
 
-    try {
-      // Fetch real system status from backend
-      const response = await apiRequest("/admin/system-status", {
-        method: "POST",
-        headers: {
-          "X-Token": X_TOKEN_VALUE,
-        },
-        body: JSON.stringify({
-          session_key: sessionKey,
-          auth_seed: authSeed,
-        }),
-      });
+    const requestBody = {
+      session_key: sessionKey,
+      auth_seed: authSeed,
+    };
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
+    const requestOptions = {
+      method: "POST" as const,
+      headers: {
+        "X-Token": X_TOKEN_VALUE,
+      },
+      body: JSON.stringify(requestBody),
+    };
 
-      const data = await response.json();
-      console.log("System status response:", data);
+    // Parallelize all API calls for faster refresh
+    const [systemStatusRes, statsRes, analyticsRes, licenseRes] = await Promise.allSettled([
+      apiRequest("/admin/system-status", requestOptions, 1),
+      apiRequest("/admin/dashboard-stats", requestOptions, 1),
+      apiRequest("/admin/transactions/analytics", requestOptions, 1),
+      apiRequest("/admin/license-status", requestOptions, 1),
+    ]);
 
-      if (data.success && data.status) {
-        const status = data.status;
-        setSystemStatus({
-          serverStatus: status.server_status,
-          databaseStatus: status.database_status,
-          apiResponseTime: `${status.api_response_time}ms`,
-          lastBackup: status.last_backup || "Tidak ada backup",
-          memoryUsage: status.memory_usage || 0,
-          cpuUsage: status.cpu_usage || 0,
-          activeConnections: status.active_connections,
-          totalRequests: status.total_requests,
-          monthlyAppSuccessTrx: status.monthly_app_success_trx || 0,
-        });
-
-        // Update dashboard health based on system status
-        setStats((prevStats) => ({
-          ...prevStats,
-          systemHealth:
-            status.server_status === "Online" ? "healthy" : "critical",
-        }));
-      } else {
-        // Backend is not responding or returned error
-        setSystemStatus({
-          serverStatus: "Offline",
-          databaseStatus: "Unknown",
-          apiResponseTime: "N/A",
-          lastBackup: "N/A",
-          memoryUsage: 0,
-          cpuUsage: 0,
-          activeConnections: 0,
-          totalRequests: 0,
-          monthlyAppSuccessTrx: 0,
-        });
-
-        // Set critical health when backend is offline
-        setStats((prevStats) => ({
-          ...prevStats,
-          systemHealth: "critical",
-        }));
-      }
-
-      // Mark system status as loaded
-      setLoadingStates((prev) => ({ ...prev, systemStatus: false }));
-
-      // Fetch active sessions from dashboard stats (session table)
+    // Handle system status
+    if (systemStatusRes.status === "fulfilled" && systemStatusRes.value.ok) {
       try {
-        const statsResponse = await apiRequest("/admin/dashboard-stats", {
-          method: "POST",
-          headers: {
-            "X-Token": X_TOKEN_VALUE,
-          },
-          body: JSON.stringify({
-            session_key: sessionKey,
-            auth_seed: authSeed,
-          }),
-        });
-
-        if (!statsResponse.ok) {
-          throw new Error(`HTTP ${statsResponse.status}`);
+        const data = await systemStatusRes.value.json();
+        if (data.success && data.status) {
+          const status = data.status;
+          setSystemStatus({
+            serverStatus: status.server_status,
+            databaseStatus: status.database_status,
+            apiResponseTime: `${status.api_response_time}ms`,
+            lastBackup: status.last_backup || "Tidak ada backup",
+            memoryUsage: status.memory_usage || 0,
+            cpuUsage: status.cpu_usage || 0,
+            activeConnections: status.active_connections,
+            totalRequests: status.total_requests,
+            monthlyAppSuccessTrx: status.monthly_app_success_trx || 0,
+          });
+          setStats((prevStats) => ({
+            ...prevStats,
+            systemHealth: status.server_status === "Online" ? "healthy" : "critical",
+          }));
         }
+      } catch (error) {
+        console.error("Failed to parse system status:", error);
+      }
+    }
+    setLoadingStates((prev) => ({ ...prev, systemStatus: false }));
 
-        const statsData = await statsResponse.json();
-
+    // Handle dashboard stats
+    if (statsRes.status === "fulfilled" && statsRes.value.ok) {
+      try {
+        const statsData = await statsRes.value.json();
         if (statsData.success && statsData.stats) {
           const dashboardStats = statsData.stats;
           setStats((prevStats) => ({
@@ -2413,37 +2359,15 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
           }));
         }
       } catch (error) {
-        // Only log non-network errors to reduce console spam
-        if (!(error instanceof TypeError && (error.message.includes("fetch") || error.message.includes("NetworkError") || error.message.includes("Failed to fetch"))) && !(error instanceof Error && error.name === "AbortError")) {
-          console.error("Failed to fetch dashboard stats:", error);
-        }
-      } finally {
-        // Mark stats as loaded
-        setLoadingStates((prev) => ({ ...prev, stats: false }));
+        console.error("Failed to parse dashboard stats:", error);
       }
+    }
+    setLoadingStates((prev) => ({ ...prev, stats: false }));
 
-      // Fetch today's transactions from TransactionManagement logic (working endpoint)
+    // Handle transaction analytics
+    if (analyticsRes.status === "fulfilled" && analyticsRes.value.ok) {
       try {
-        const analyticsResponse = await apiRequest(
-          "/admin/transactions/analytics",
-          {
-            method: "POST",
-            headers: {
-              "X-Token": X_TOKEN_VALUE,
-            },
-            body: JSON.stringify({
-              session_key: sessionKey,
-              auth_seed: authSeed,
-            }),
-          },
-        );
-
-        if (!analyticsResponse.ok) {
-          throw new Error(`HTTP ${analyticsResponse.status}`);
-        }
-
-        const analyticsData = await analyticsResponse.json();
-
+        const analyticsData = await analyticsRes.value.json();
         if (analyticsData.success && analyticsData.analytics) {
           setStats((prevStats) => ({
             ...prevStats,
@@ -2451,34 +2375,15 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
           }));
         }
       } catch (error) {
-        // Only log non-network errors to reduce console spam
-        if (!(error instanceof TypeError && (error.message.includes("fetch") || error.message.includes("NetworkError") || error.message.includes("Failed to fetch"))) && !(error instanceof Error && error.name === "AbortError")) {
-          console.error("Failed to fetch transaction analytics:", error);
-        }
-      } finally {
-        // Mark transactions as loaded
-        setLoadingStates((prev) => ({ ...prev, transactions: false }));
+        console.error("Failed to parse transaction analytics:", error);
       }
+    }
+    setLoadingStates((prev) => ({ ...prev, transactions: false }));
 
-      // Fetch license status
+    // Handle license status
+    if (licenseRes.status === "fulfilled" && licenseRes.value.ok) {
       try {
-        const licenseResponse = await apiRequest("/admin/license-status", {
-          method: "POST",
-          headers: {
-            "X-Token": X_TOKEN_VALUE,
-          },
-          body: JSON.stringify({
-            session_key: sessionKey,
-            auth_seed: authSeed,
-          }),
-        });
-
-        if (!licenseResponse.ok) {
-          throw new Error(`HTTP ${licenseResponse.status}`);
-        }
-
-        const licenseData = await licenseResponse.json();
-
+        const licenseData = await licenseRes.value.json();
         if (licenseData.success && licenseData.license_status) {
           setLicenseStatus(licenseData.license_status);
         } else {
@@ -2488,52 +2393,19 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
           }));
         }
       } catch (error) {
-        // Only log non-network errors to reduce console spam
-        if (error instanceof TypeError && (error.message.includes("fetch") || error.message.includes("NetworkError") || error.message.includes("Failed to fetch"))) {
-          // Network error - silently handle
-        } else if (error instanceof Error && error.name === "AbortError") {
-          // Timeout error - silently handle
-        } else {
-          console.error("Failed to fetch license status:", error);
-        }
+        console.error("Failed to parse license status:", error);
         setLicenseStatus((prev) => ({
           ...prev,
           status_message: "Error loading license status",
         }));
-      } finally {
-        // Mark license status as loaded
-        setLoadingStates((prev) => ({ ...prev, licenseStatus: false }));
       }
-    } catch (error) {
-      // Only log non-network errors to reduce console spam
-      if (!(error instanceof TypeError && (error.message.includes("fetch") || error.message.includes("NetworkError") || error.message.includes("Failed to fetch"))) && !(error instanceof Error && error.name === "AbortError")) {
-        console.error("Failed to refresh dashboard stats:", error);
-      }
-      // Set offline status when network error occurs
-      setSystemStatus({
-        serverStatus: "Offline",
-        databaseStatus: "Unknown",
-        apiResponseTime: "N/A",
-        lastBackup: "N/A",
-        memoryUsage: 0,
-        cpuUsage: 0,
-        activeConnections: 0,
-        totalRequests: 0,
-        monthlyAppSuccessTrx: 0,
-      });
-      // Set critical system health when backend is offline
-      setStats((prevStats) => ({
-        ...prevStats,
-        systemHealth: "critical",
+    } else {
+      setLicenseStatus((prev) => ({
+        ...prev,
+        status_message: "Error loading license status",
       }));
-      // Mark all as loaded even on error
-      setLoadingStates({
-        stats: false,
-        systemStatus: false,
-        transactions: false,
-        licenseStatus: false,
-      });
     }
+    setLoadingStates((prev) => ({ ...prev, licenseStatus: false }));
   };
 
   useImperativeHandle(ref, () => ({
