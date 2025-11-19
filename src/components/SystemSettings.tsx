@@ -118,6 +118,19 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
     const [cektagihanConfigOrder, setCektagihanConfigOrder] = useState<string[]>([]);
     const [appRulesOrder, setAppRulesOrder] = useState<string[]>([]);
 
+    // Normalize receipt maps config to ensure dash is always boolean
+    const normalizeReceiptMapsConfig = (config: any): ReceiptMapsConfig => {
+      return {
+        ...config,
+        configs: config.configs.map((cfg: any) => ({
+          ...cfg,
+          dash: typeof cfg.dash === 'string' 
+            ? cfg.dash.toLowerCase() === 'true' 
+            : (cfg.dash ?? false),
+        })),
+      };
+    };
+
     useEffect(() => {
       // Load from cache immediately
       const cached = getCachedSystemSettings();
@@ -147,7 +160,7 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
           setCektagihanConfigOrder(Object.keys(cached.cektagihanConfig));
         }
         if (cached.receiptMapsConfig) {
-          setReceiptMapsConfig(cached.receiptMapsConfig);
+          setReceiptMapsConfig(normalizeReceiptMapsConfig(cached.receiptMapsConfig));
         }
         if (cached.bantuanConfig) {
           setBantuanConfig(cached.bantuanConfig);
@@ -1091,13 +1104,15 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.config) {
+            // Normalize dash field to boolean for backward compatibility
+            const normalizedConfig = normalizeReceiptMapsConfig(data.config);
             setReceiptMapsConfig(prev => {
-              if (prev && JSON.stringify(prev) === JSON.stringify(data.config)) {
+              if (prev && JSON.stringify(prev) === JSON.stringify(normalizedConfig)) {
                 return prev;
               }
-              return data.config;
+              return normalizedConfig;
             });
-            setCachedSystemSettings({ receiptMapsConfig: data.config });
+            setCachedSystemSettings({ receiptMapsConfig: normalizedConfig });
           } else {
             if (!receiptMapsConfig) {
               setReceiptMapsConfig(getDefaultReceiptMapsConfig());
