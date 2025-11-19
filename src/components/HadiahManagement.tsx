@@ -6,10 +6,13 @@ import {
   AlertCircle,
   CheckCircle,
   Search,
-  Upload
+  Upload,
+  Image as ImageIcon,
+  Trash2
 } from 'lucide-react';
 import { X_TOKEN_VALUE, getApiUrl } from '../config/api';
 import { getCachedHadiahConfig, setCachedHadiahConfig, mergeHadiahConfig } from '../utils/hadiahCache';
+import AssetsManager from './AssetsManager';
 
 // Types for hadiah management
 interface Hadiah {
@@ -60,6 +63,10 @@ const HadiahManagement = forwardRef<HadiahManagementRef, HadiahManagementProps>(
   });
   const [imagePreview, setImagePreview] = useState<{ [key: number]: string }>({});
   const [uploadingImage, setUploadingImage] = useState<number | null>(null);
+  const [showAssetPicker, setShowAssetPicker] = useState(false);
+  const [assetsRefreshTrigger, setAssetsRefreshTrigger] = useState(0);
+  const [currentHadiahId, setCurrentHadiahId] = useState<number | 'new' | null>(null);
+  const fileInputRefs = useRef<Record<number | 'new', HTMLInputElement | null>>({});
   const hasLoadedRef = useRef(false);
 
   const loadHadiahConfig = useCallback(async (background = false) => {
@@ -265,14 +272,6 @@ const HadiahManagement = forwardRef<HadiahManagementRef, HadiahManagementProps>(
         key={hadiah.id}
         className="flex gap-3 p-2 bg-white rounded border border-gray-200 hover:bg-gray-50"
       >
-        {/* ID */}
-        <div className="flex-shrink-0 w-16 flex items-start">
-          <span className="text-xs font-mono text-gray-500">{hadiah.id}</span>
-        </div>
-        
-        {/* Separator */}
-        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
-        
         {/* Nama */}
         <div className="flex-shrink-0 w-1/6 flex items-start">
           <input
@@ -334,30 +333,40 @@ const HadiahManagement = forwardRef<HadiahManagementRef, HadiahManagementProps>(
         <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
         
         {/* Image */}
-        <div className="flex-shrink-0 w-32 flex items-start">
+        <div className="flex-shrink-0 w-48 flex items-start">
           <div className="w-full space-y-1">
-            <input
-              type="url"
-              value={imagePreview[hadiah.id] || hadiah.image_url}
-              onChange={(e) => updateHadiah(hadiah.id, 'image_url', e.target.value)}
-              className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              placeholder="Image URL"
-            />
-            <label className="block px-2 py-0.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer text-center">
-              <Upload className="h-3 w-3 inline mr-1" />
-              Upload
+            <div className="flex gap-1">
               <input
+                type="url"
+                value={imagePreview[hadiah.id] || hadiah.image_url}
+                onChange={(e) => updateHadiah(hadiah.id, 'image_url', e.target.value)}
+                className="flex-1 min-w-0 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                placeholder="Image URL"
+              />
+              <input
+                ref={(el) => { fileInputRefs.current[hadiah.id] = el; }}
                 type="file"
                 accept="image/*"
                 className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    handleImageUpload(file, hadiah.id);
-                  }
-                }}
+                onChange={(e) => handleFileSelect(e, hadiah.id)}
               />
-            </label>
+              <button
+                type="button"
+                onClick={() => fileInputRefs.current[hadiah.id]?.click()}
+                className="px-1.5 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center flex-shrink-0"
+                title="Upload image"
+              >
+                <Upload size={12} />
+              </button>
+              <button
+                type="button"
+                onClick={() => openAssetPicker(hadiah.id)}
+                className="px-1.5 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors flex items-center flex-shrink-0"
+                title="Select from assets"
+              >
+                <ImageIcon size={12} />
+              </button>
+            </div>
             {uploadingImage === hadiah.id && (
               <div className="text-xs text-gray-600 text-center">
                 Uploading...
@@ -370,28 +379,27 @@ const HadiahManagement = forwardRef<HadiahManagementRef, HadiahManagementProps>(
         <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
         
         {/* Status */}
-        <div className="flex-shrink-0 w-24 flex items-start">
-          <select
-            value={hadiah.status}
-            onChange={(e) => updateHadiah(hadiah.id, 'status', e.target.value)}
-            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          >
-            <option value="aktif">Aktif</option>
-            <option value="tidak aktif">Tidak Aktif</option>
-          </select>
+        <div className="flex-shrink-0 w-8 flex items-start justify-center">
+          <input
+            type="checkbox"
+            checked={hadiah.status === 'aktif'}
+            onChange={(e) => updateHadiah(hadiah.id, 'status', e.target.checked ? 'aktif' : 'tidak aktif')}
+            className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            title={hadiah.status === 'aktif' ? 'Aktif' : 'Tidak Aktif'}
+          />
         </div>
         
         {/* Separator */}
         <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
         
         {/* Actions */}
-        <div className="flex-shrink-0 w-20 flex items-start">
+        <div className="flex-shrink-0 w-10 flex items-start">
           <button
             onClick={() => removeHadiah(hadiah.id)}
-            className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+            className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
             title="Hapus hadiah"
           >
-            Hapus
+            <Trash2 size={16} />
           </button>
         </div>
       </div>
@@ -407,24 +415,148 @@ const HadiahManagement = forwardRef<HadiahManagementRef, HadiahManagementProps>(
 
   const kategoriOptions = hadiahConfig?.metadata.kategori_tersedia || [];
 
-  const handleImageUpload = async (file: File, hadiahId: number) => {
-    setUploadingImage(hadiahId);
+  const getPublicUrl = async (filename: string) => {
+    // Strip any leading /assets/ or / from the filename
+    const cleanFilename = filename.replace(/^\/assets\//, '').replace(/^\//, '');
+    const apiUrl = await getApiUrl('');
+    return `${apiUrl}/assets/${cleanFilename}`;
+  };
+
+  const handleUploadFile = async (file: File) => {
     try {
-      // For now, we'll convert the image to a data URL and use it directly
-      // In a real implementation, you would upload to a server and get a URL back
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const dataUrl = e.target?.result as string;
-        setImagePreview(prev => ({ ...prev, [hadiahId]: dataUrl }));
-        updateHadiah(hadiahId, 'image_url', dataUrl);
-        setUploadingImage(null);
-      };
-      reader.readAsDataURL(file);
+      const sessionKey = localStorage.getItem('adminSessionKey');
+      if (!sessionKey) {
+        console.error('Session key not found');
+        return null;
+      }
+
+      const formData = new FormData();
+      formData.append('session_key', sessionKey);
+      formData.append('auth_seed', authSeed);
+      formData.append('file', file);
+
+      const apiUrl = await getApiUrl('/admin/assets/upload');
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'X-Token': X_TOKEN_VALUE,
+        },
+        body: formData,
+      });
+
+      const data = await response.json();
+      console.log('Upload response:', data);
+      
+      if (data.success) {
+        // Try different response formats
+        let filename = null;
+        let publicUrl = null;
+        
+        // Check for filename in various places
+        if (data.filename) {
+          filename = data.filename;
+        } else if (data.asset?.filename) {
+          filename = data.asset.filename;
+        } else if (data.file_url) {
+          // Extract filename from file_url
+          const urlParts = data.file_url.split('/');
+          filename = urlParts[urlParts.length - 1];
+        }
+        
+        // Check for public_url or file_url (might be full URL or relative)
+        if (data.public_url) {
+          publicUrl = data.public_url;
+        } else if (data.asset?.public_url) {
+          publicUrl = data.asset.public_url;
+        } else if (data.file_url) {
+          publicUrl = data.file_url;
+        }
+        
+        // If we have a URL but it's relative (starts with /), make it absolute
+        if (publicUrl && publicUrl.startsWith('/')) {
+          const baseUrl = await getApiUrl('');
+          publicUrl = `${baseUrl}${publicUrl}`;
+        }
+        
+        // If we still don't have a URL but have a filename, construct it
+        if (!publicUrl && filename) {
+          publicUrl = await getPublicUrl(filename);
+        }
+        
+        console.log('Extracted filename:', filename);
+        console.log('Constructed publicUrl:', publicUrl);
+        
+        if (publicUrl) {
+          setAssetsRefreshTrigger(prev => prev + 1);
+          return publicUrl;
+        } else {
+          console.error('Upload succeeded but no URL found in response:', data);
+          return null;
+        }
+      } else {
+        console.error('Upload failed:', data.message || 'Unknown error');
+        return null;
+      }
+    } catch (error) {
+      console.error('Upload failed:', error);
+      return null;
+    }
+  };
+
+  const handleImageUpload = async (file: File, hadiahId: number | 'new') => {
+    if (hadiahId === 'new') {
+      setUploadingImage(-1);
+    } else {
+      setUploadingImage(hadiahId);
+    }
+    
+    try {
+      const url = await handleUploadFile(file);
+      
+      if (url) {
+        if (hadiahId === 'new') {
+          setNewHadiah(prev => ({ ...prev, image_url: url }));
+        } else {
+          updateHadiah(hadiahId, 'image_url', url);
+        }
+      } else {
+        setMessage({ type: 'error', text: 'Failed to upload image' });
+      }
     } catch (error) {
       console.error('Error uploading image:', error);
       setMessage({ type: 'error', text: 'Failed to upload image' });
+    } finally {
       setUploadingImage(null);
     }
+  };
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>, hadiahId: number | 'new') => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    await handleImageUpload(file, hadiahId);
+
+    const ref = fileInputRefs.current[hadiahId];
+    if (ref) {
+      ref.value = '';
+    }
+  };
+
+  const handleAssetSelect = (url: string) => {
+    if (url && currentHadiahId !== null) {
+      if (currentHadiahId === 'new') {
+        setNewHadiah(prev => ({ ...prev, image_url: url }));
+      } else {
+        updateHadiah(currentHadiahId, 'image_url', url);
+      }
+      setShowAssetPicker(false);
+      setCurrentHadiahId(null);
+    }
+  };
+
+  const openAssetPicker = (hadiahId: number | 'new') => {
+    setCurrentHadiahId(hadiahId);
+    setShowAssetPicker(true);
   };
 
 
@@ -533,25 +665,55 @@ const HadiahManagement = forwardRef<HadiahManagementRef, HadiahManagementProps>(
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-700">Status:</label>
-            <select
-              value={newHadiah.status || 'aktif'}
-              onChange={(e) => setNewHadiah(prev => ({ ...prev, status: e.target.value }))}
-              className="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            >
-              <option value="aktif">Aktif</option>
-              <option value="tidak aktif">Tidak Aktif</option>
-            </select>
+            <label className="text-xs font-medium text-gray-700 flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={(newHadiah.status || 'aktif') === 'aktif'}
+                onChange={(e) => setNewHadiah(prev => ({ ...prev, status: e.target.checked ? 'aktif' : 'tidak aktif' }))}
+                className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <span>Aktif</span>
+            </label>
           </div>
           <div className="md:col-span-2">
             <label className="text-xs font-medium text-gray-700">Image URL:</label>
-            <input
-              type="url"
-              value={newHadiah.image_url || ''}
-              onChange={(e) => setNewHadiah(prev => ({ ...prev, image_url: e.target.value }))}
-              className="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              placeholder="Image URL"
-            />
+            <div className="flex gap-2">
+              <input
+                type="url"
+                value={newHadiah.image_url || ''}
+                onChange={(e) => setNewHadiah(prev => ({ ...prev, image_url: e.target.value }))}
+                className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                placeholder="Image URL"
+              />
+              <input
+                ref={(el) => { fileInputRefs.current['new'] = el; }}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => handleFileSelect(e, 'new')}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRefs.current['new']?.click()}
+                className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors flex items-center gap-1"
+                title="Upload image"
+              >
+                <Upload size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => openAssetPicker('new')}
+                className="px-3 py-1 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors flex items-center gap-1"
+                title="Select from assets"
+              >
+                <ImageIcon size={14} />
+              </button>
+            </div>
+            {uploadingImage === -1 && (
+              <div className="text-xs text-gray-600 mt-1">
+                Uploading...
+              </div>
+            )}
           </div>
         </div>
         <div className="mt-3">
@@ -570,8 +732,6 @@ const HadiahManagement = forwardRef<HadiahManagementRef, HadiahManagementProps>(
         <div className="p-4">
           <div className="mb-3 pb-2 border-b border-gray-200">
             <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
-              <div className="flex-shrink-0 w-16">ID</div>
-              <div className="flex-shrink-0 text-gray-400">|</div>
               <div className="flex-shrink-0 w-1/6">Nama</div>
               <div className="flex-shrink-0 text-gray-400">|</div>
               <div className="flex-shrink-0 w-20">Poin</div>
@@ -580,11 +740,11 @@ const HadiahManagement = forwardRef<HadiahManagementRef, HadiahManagementProps>(
               <div className="flex-shrink-0 text-gray-400">|</div>
               <div className="flex-1 min-w-0">Deskripsi</div>
               <div className="flex-shrink-0 text-gray-400">|</div>
-              <div className="flex-shrink-0 w-32">Image</div>
+              <div className="flex-shrink-0 w-48">Image</div>
               <div className="flex-shrink-0 text-gray-400">|</div>
-              <div className="flex-shrink-0 w-24">Status</div>
+              <div className="flex-shrink-0 w-8">Aktif</div>
               <div className="flex-shrink-0 text-gray-400">|</div>
-              <div className="flex-shrink-0 w-20">Aksi</div>
+              <div className="flex-shrink-0 w-10">Aksi</div>
             </div>
           </div>
           <div className="space-y-2">
@@ -598,6 +758,38 @@ const HadiahManagement = forwardRef<HadiahManagementRef, HadiahManagementProps>(
           <Gift className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">Tidak Ada Hadiah</h3>
           <p className="text-gray-600">Tidak ada hadiah yang sesuai dengan filter pencarian</p>
+        </div>
+      )}
+
+      {/* Asset Picker Modal */}
+      {showAssetPicker && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg w-[90vw] max-w-6xl h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-800">Pilih atau Upload Asset</h3>
+              <button
+                onClick={() => {
+                  setShowAssetPicker(false);
+                  setCurrentHadiahId(null);
+                }}
+                className="p-1 text-gray-600 hover:text-gray-800 rounded"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <AssetsManager 
+                authSeed={authSeed}
+                refreshTrigger={assetsRefreshTrigger}
+                onAssetSelect={handleAssetSelect}
+              />
+              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800 mb-2">
+                  <strong>Petunjuk:</strong> Klik langsung pada gambar untuk memilih dan menerapkan ke field Image URL secara otomatis.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
