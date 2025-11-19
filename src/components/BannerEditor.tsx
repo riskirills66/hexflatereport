@@ -1,18 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ContentSection, MenuItem } from '../types';
-import { Plus, Trash2, ChevronDown, ChevronRight, Save, AlertTriangle, Copy } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronRight, Save, AlertTriangle, Copy, Upload, Image as ImageIcon, X } from 'lucide-react';
 import { getRoutesByCategory, getDefaultArgsForRoute } from '../data/routeConfig';
 import RouteArgsConfig from './RouteArgsConfig';
 import RouteArgsEditor from './RouteArgsEditor';
+import AssetsManager from './AssetsManager';
+import { getApiUrl, X_TOKEN_VALUE } from '../config/api';
 
 interface BannerEditorProps {
   widget: ContentSection;
   onSave: (updates: Partial<ContentSection>) => void;
   onClose: () => void;
   menuItems?: MenuItem[]; // Available menu items for cloning
+  authSeed?: string;
 }
 
-const BannerEditor: React.FC<BannerEditorProps> = ({ widget, onSave, onClose, menuItems = [] }) => {
+const BannerEditor: React.FC<BannerEditorProps> = ({ widget, onSave, onClose, menuItems = [], authSeed = '' }) => {
   const [localWidget, setLocalWidget] = useState<ContentSection>(widget);
   const [expandedBanners, setExpandedBanners] = useState<Set<number>>(new Set()); // Start with all collapsed
   const [bannerColors, setBannerColors] = useState<string[]>([]);
@@ -23,6 +26,12 @@ const BannerEditor: React.FC<BannerEditorProps> = ({ widget, onSave, onClose, me
   const [showUnsavedChangesDialog, setShowUnsavedChangesDialog] = useState(false);
   const [pendingAction, setPendingAction] = useState<'close' | null>(null);
   const originalWidgetRef = useRef<ContentSection>(widget);
+
+  // Asset picker/uploader state
+  const [showAssetPicker, setShowAssetPicker] = useState(false);
+  const [assetsRefreshTrigger, setAssetsRefreshTrigger] = useState(0);
+  const [currentBannerIndex, setCurrentBannerIndex] = useState<number | null>(null);
+  const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
   // Get routes grouped by category for the select dropdown
   const routesByCategory = getRoutesByCategory();
@@ -263,6 +272,128 @@ const BannerEditor: React.FC<BannerEditorProps> = ({ widget, onSave, onClose, me
     };
   };
 
+  const getPublicUrl = async (filename: string) => {
+    // Strip any leading /assets/ or / from the filename
+    const cleanFilename = filename.replace(/^\/assets\//, '').replace(/^\//, '');
+    const apiUrl = await getApiUrl('');
+    return `${apiUrl}/assets/${cleanFilename}`;
+  };
+
+  const handleUploadFile = async (file: File) => {
+    try {
+      const sessionKey = localStorage.getItem('adminSessionKey');
+      if (!sessionKey) {
+        console.error('Session key not found');
+        return null;
+      }
+
+      const formData = new FormData();
+      formData.append('session_key', sessionKey);
+      formData.append('auth_seed', authSeed || localStorage.getItem('adminAuthSeed') || '');
+      formData.append('file', file);
+
+      const apiUrl = await getApiUrl('/admin/assets/upload');
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'X-Token': X_TOKEN_VALUE,
+        },
+        body: formData,
+      });
+
+      const data = await response.json();
+      console.log('Upload response:', data);
+      
+      if (data.success) {
+        // Try different response formats
+        let filename = null;
+        let publicUrl = null;
+        
+        // Check for filename in various places
+        if (data.filename) {
+          filename = data.filename;
+        } else if (data.asset?.filename) {
+          filename = data.asset.filename;
+        } else if (data.file_url) {
+          // Extract filename from file_url
+          const urlParts = data.file_url.split('/');
+          filename = urlParts[urlParts.length - 1];
+        }
+        
+        // Check for public_url or file_url (might be full URL or relative)
+        if (data.public_url) {
+          publicUrl = data.public_url;
+        } else if (data.asset?.public_url) {
+          publicUrl = data.asset.public_url;
+        } else if (data.file_url) {
+          publicUrl = data.file_url;
+        }
+        
+        // If we have a URL but it's relative (starts with /), make it absolute
+        if (publicUrl && publicUrl.startsWith('/')) {
+          const baseUrl = await getApiUrl('');
+          publicUrl = `${baseUrl}${publicUrl}`;
+        }
+        
+        // If we still don't have a URL but have a filename, construct it
+        if (!publicUrl && filename) {
+          publicUrl = await getPublicUrl(filename);
+        }
+        
+        console.log('Extracted filename:', filename);
+        console.log('Constructed publicUrl:', publicUrl);
+        
+        if (publicUrl) {
+          setAssetsRefreshTrigger(prev => prev + 1);
+          return publicUrl;
+        } else {
+          console.error('Upload succeeded but no URL found in response:', data);
+          return null;
+        }
+      } else {
+        console.error('Upload failed:', data.message || 'Unknown error');
+        return null;
+      }
+    } catch (error) {
+      console.error('Upload failed:', error);
+      return null;
+    }
+  };
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>, index: number) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    console.log('Starting file upload for banner', index);
+    const url = await handleUploadFile(file);
+    console.log('Upload completed, URL:', url);
+    
+    if (url) {
+      console.log('Setting imageUrl to:', url);
+      updateBanner(index, { imageUrl: url });
+    } else {
+      console.error('Failed to get URL from upload');
+    }
+
+    if (fileInputRefs.current[index]) {
+      fileInputRefs.current[index]!.value = '';
+    }
+  };
+
+  const handleAssetSelect = (url: string) => {
+    if (url && currentBannerIndex !== null) {
+      console.log('Asset selected, setting imageUrl to:', url);
+      updateBanner(currentBannerIndex, { imageUrl: url });
+      setShowAssetPicker(false);
+      setCurrentBannerIndex(null);
+    }
+  };
+
+  const openAssetPicker = (index: number) => {
+    setCurrentBannerIndex(index);
+    setShowAssetPicker(true);
+  };
+
   // Handle menu cloning
   const handleMenuClone = (index: number, menuId: string) => {
     const menuItem = findMenuItemById(menuItems, menuId);
@@ -401,13 +532,42 @@ const BannerEditor: React.FC<BannerEditorProps> = ({ widget, onSave, onClose, me
                             <div className="space-y-2">
                               <div className="form-group">
                                 <label className="form-label text-xs">URL Gambar</label>
-                                <input
-                                  type="url"
-                                  className="form-input text-sm py-1 w-full"
-                                  value={banner.imageUrl || ''}
-                                  onChange={(e) => updateBanner(index, { imageUrl: e.target.value })}
-                                  placeholder="https://example.com/image.jpg"
-                                />
+                                <div className="flex gap-2">
+                                  <input
+                                    type="url"
+                                    className="form-input text-sm py-1 flex-1"
+                                    value={banner.imageUrl || ''}
+                                    onChange={(e) => updateBanner(index, { imageUrl: e.target.value })}
+                                    placeholder="https://example.com/image.jpg"
+                                  />
+                                  <input
+                                    ref={(el) => {
+                                      if (el) {
+                                        fileInputRefs.current[index] = el;
+                                      }
+                                    }}
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => handleFileSelect(e, index)}
+                                    className="hidden"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => fileInputRefs.current[index]?.click()}
+                                    className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center gap-1"
+                                    title="Upload image"
+                                  >
+                                    <Upload size={14} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => openAssetPicker(index)}
+                                    className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors flex items-center gap-1"
+                                    title="Select from assets"
+                                  >
+                                    <ImageIcon size={14} />
+                                  </button>
+                                </div>
                               </div>
                               <div className="form-group">
                                 <label className="form-label text-xs">Judul</label>
@@ -756,6 +916,38 @@ const BannerEditor: React.FC<BannerEditorProps> = ({ widget, onSave, onClose, me
               >
                 Buang Perubahan
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Asset Picker Modal */}
+      {showAssetPicker && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg w-[90vw] max-w-6xl h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-800">Pilih atau Upload Asset</h3>
+              <button
+                onClick={() => {
+                  setShowAssetPicker(false);
+                  setCurrentBannerIndex(null);
+                }}
+                className="p-1 text-gray-600 hover:text-gray-800 rounded"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <AssetsManager 
+                authSeed={authSeed || localStorage.getItem('adminAuthSeed') || ''}
+                refreshTrigger={assetsRefreshTrigger}
+                onAssetSelect={handleAssetSelect}
+              />
+              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800 mb-2">
+                  <strong>Petunjuk:</strong> Klik langsung pada gambar untuk memilih dan menerapkan ke field URL Gambar secara otomatis.
+                </p>
+              </div>
             </div>
           </div>
         </div>

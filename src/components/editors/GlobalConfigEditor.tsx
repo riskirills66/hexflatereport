@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   GlobalTheming,
   ThemeColors,
@@ -6,7 +6,7 @@ import {
   MenuItem,
 } from "../../types";
 import ColorPicker from "../ColorPicker";
-import { Plus, Trash2, Save, Eye, EyeOff, MapPin, Info } from "lucide-react";
+import { Plus, Trash2, Save, Eye, EyeOff, MapPin, Info, Upload, Image as ImageIcon, X } from "lucide-react";
 import {
   getRoutesByCategory,
   getDefaultArgsForRoute,
@@ -15,12 +15,15 @@ import {
 } from "../../data/routeConfig";
 import TagInput from "../TagInput";
 import RouteArgsConfig from "../RouteArgsConfig";
+import AssetsManager from "../AssetsManager";
+import { getApiUrl, X_TOKEN_VALUE } from "../../config/api";
 
 interface GlobalConfigEditorProps {
   globalConfig?: GlobalTheming;
   onUpdate: (config: GlobalTheming) => void;
   showThemingOnly?: boolean;
   menuItems?: MenuItem[]; // Available menu items for cloning
+  authSeed?: string;
 }
 
 const GlobalConfigEditor: React.FC<GlobalConfigEditorProps> = ({
@@ -28,6 +31,7 @@ const GlobalConfigEditor: React.FC<GlobalConfigEditorProps> = ({
   onUpdate,
   showThemingOnly = false,
   menuItems = [],
+  authSeed = "",
 }) => {
   const [config, setConfig] = useState<GlobalTheming>(
     globalConfig ||
@@ -91,6 +95,127 @@ const GlobalConfigEditor: React.FC<GlobalConfigEditorProps> = ({
     const updatedConfig = { ...config, ...updates };
     setConfig(updatedConfig);
     onUpdate(updatedConfig);
+  };
+
+  // Asset picker/uploader state
+  const [showAssetPicker, setShowAssetPicker] = useState(false);
+  const [assetsRefreshTrigger, setAssetsRefreshTrigger] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const getPublicUrl = async (filename: string) => {
+    // Strip any leading /assets/ or / from the filename
+    const cleanFilename = filename.replace(/^\/assets\//, '').replace(/^\//, '');
+    const apiUrl = await getApiUrl('');
+    return `${apiUrl}/assets/${cleanFilename}`;
+  };
+
+  const handleUploadFile = async (file: File) => {
+    try {
+      const sessionKey = localStorage.getItem('adminSessionKey');
+      if (!sessionKey) {
+        console.error('Session key not found');
+        return null;
+      }
+
+      const formData = new FormData();
+      formData.append('session_key', sessionKey);
+      formData.append('auth_seed', authSeed || localStorage.getItem('adminAuthSeed') || '');
+      formData.append('file', file);
+
+      const apiUrl = await getApiUrl('/admin/assets/upload');
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'X-Token': X_TOKEN_VALUE,
+        },
+        body: formData,
+      });
+
+      const data = await response.json();
+      console.log('Upload response:', data);
+      
+      if (data.success) {
+        // Try different response formats
+        let filename = null;
+        let publicUrl = null;
+        
+        // Check for filename in various places
+        if (data.filename) {
+          filename = data.filename;
+        } else if (data.asset?.filename) {
+          filename = data.asset.filename;
+        } else if (data.file_url) {
+          // Extract filename from file_url
+          const urlParts = data.file_url.split('/');
+          filename = urlParts[urlParts.length - 1];
+        }
+        
+        // Check for public_url or file_url (might be full URL or relative)
+        if (data.public_url) {
+          publicUrl = data.public_url;
+        } else if (data.asset?.public_url) {
+          publicUrl = data.asset.public_url;
+        } else if (data.file_url) {
+          publicUrl = data.file_url;
+        }
+        
+        // If we have a URL but it's relative (starts with /), make it absolute
+        if (publicUrl && publicUrl.startsWith('/')) {
+          const baseUrl = await getApiUrl('');
+          publicUrl = `${baseUrl}${publicUrl}`;
+        }
+        
+        // If we still don't have a URL but have a filename, construct it
+        if (!publicUrl && filename) {
+          publicUrl = await getPublicUrl(filename);
+        }
+        
+        console.log('Extracted filename:', filename);
+        console.log('Constructed publicUrl:', publicUrl);
+        
+        if (publicUrl) {
+          setAssetsRefreshTrigger(prev => prev + 1);
+          return publicUrl;
+        } else {
+          console.error('Upload succeeded but no URL found in response:', data);
+          return null;
+        }
+      } else {
+        console.error('Upload failed:', data.message || 'Unknown error');
+        return null;
+      }
+    } catch (error) {
+      console.error('Upload failed:', error);
+      return null;
+    }
+  };
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    console.log('Starting file upload for welcome poster');
+    const url = await handleUploadFile(file);
+    console.log('Upload completed, URL:', url);
+    
+    if (url) {
+      console.log('Setting imageUrl to:', url);
+      updateWelcomePoster({ imageUrl: url });
+    } else {
+      console.error('Failed to get URL from upload');
+    }
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleAssetSelect = (url: string) => {
+    if (url) {
+      console.log('Asset selected, setting imageUrl to:', url);
+      updateWelcomePoster({ imageUrl: url });
+      setShowAssetPicker(false);
+    }
   };
 
   const ThemeSection: React.FC<{
@@ -200,15 +325,40 @@ const GlobalConfigEditor: React.FC<GlobalConfigEditorProps> = ({
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   URL Gambar
                 </label>
-                <input
-                  type="url"
-                  value={config.welcomePoster?.imageUrl || ""}
-                  onChange={(e) =>
-                    updateWelcomePoster({ imageUrl: e.target.value })
-                  }
-                  placeholder="https://example.com/welcome-banner.jpg"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={config.welcomePoster?.imageUrl || ""}
+                    onChange={(e) =>
+                      updateWelcomePoster({ imageUrl: e.target.value })
+                    }
+                    placeholder="https://example.com/welcome-banner.jpg"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center gap-1"
+                    title="Upload image"
+                  >
+                    <Upload size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAssetPicker(true)}
+                    className="px-3 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors flex items-center gap-1"
+                    title="Select from assets"
+                  >
+                    <ImageIcon size={14} />
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -411,6 +561,35 @@ const GlobalConfigEditor: React.FC<GlobalConfigEditorProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Asset Picker Modal */}
+      {showAssetPicker && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg w-[90vw] max-w-6xl h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-800">Pilih atau Upload Asset</h3>
+              <button
+                onClick={() => setShowAssetPicker(false)}
+                className="p-1 text-gray-600 hover:text-gray-800 rounded"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <AssetsManager 
+                authSeed={authSeed || localStorage.getItem('adminAuthSeed') || ''}
+                refreshTrigger={assetsRefreshTrigger}
+                onAssetSelect={handleAssetSelect}
+              />
+              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800 mb-2">
+                  <strong>Petunjuk:</strong> Klik langsung pada gambar untuk memilih dan menerapkan ke field URL Gambar secara otomatis.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

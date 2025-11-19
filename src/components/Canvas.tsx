@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -18,9 +18,11 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { ScreenConfig, ContentSection } from '../types';
 import WidgetPreview from './WidgetPreview';
-import { Copy, Trash2, GripVertical, X, CreditCard, Bell, HelpCircle, Settings, Image } from 'lucide-react';
+import { Copy, Trash2, GripVertical, X, CreditCard, Bell, HelpCircle, Settings, Image, Upload, Image as ImageIcon } from 'lucide-react';
 import { ACTION_BUTTON_ICONS, getIconsByCategory, findIconByName, type ActionButtonIcon } from '../data/actionButtonIcons';
 import { getActionButtonRoutesByCategory, findRouteByValue } from '../data/routeConfig';
+import AssetsManager from './AssetsManager';
+import { getApiUrl, X_TOKEN_VALUE } from '../config/api';
 
 interface CanvasProps {
   screen: ScreenConfig | undefined;
@@ -34,6 +36,7 @@ interface CanvasProps {
   showScreenConfig: boolean;
   onToggleScreenConfig: (show: boolean) => void;
   onDeleteScreen?: () => void;
+  authSeed?: string;
 }
 
 // Sortable Widget Component
@@ -120,6 +123,7 @@ const Canvas: React.FC<CanvasProps> = ({
   showScreenConfig,
   onToggleScreenConfig,
   onDeleteScreen,
+  authSeed = '',
 }) => {
 
   
@@ -202,6 +206,134 @@ const Canvas: React.FC<CanvasProps> = ({
     const newBackgrounds = { ...currentBackgrounds };
     newBackgrounds[key] = { ...newBackgrounds[key], ...updates };
     onUpdateScreen?.({ headerBackgroundUrl: newBackgrounds });
+  };
+
+  // Asset picker/uploader state
+  const [showAssetPicker, setShowAssetPicker] = useState(false);
+  const [assetsRefreshTrigger, setAssetsRefreshTrigger] = useState(0);
+  const [currentHeaderBgKey, setCurrentHeaderBgKey] = useState<string | null>(null);
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  const getPublicUrl = async (filename: string) => {
+    // Strip any leading /assets/ or / from the filename
+    const cleanFilename = filename.replace(/^\/assets\//, '').replace(/^\//, '');
+    const apiUrl = await getApiUrl('');
+    return `${apiUrl}/assets/${cleanFilename}`;
+  };
+
+  const handleUploadFile = async (file: File) => {
+    try {
+      const sessionKey = localStorage.getItem('adminSessionKey');
+      if (!sessionKey) {
+        console.error('Session key not found');
+        return null;
+      }
+
+      const formData = new FormData();
+      formData.append('session_key', sessionKey);
+      formData.append('auth_seed', authSeed || localStorage.getItem('adminAuthSeed') || '');
+      formData.append('file', file);
+
+      const apiUrl = await getApiUrl('/admin/assets/upload');
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'X-Token': X_TOKEN_VALUE,
+        },
+        body: formData,
+      });
+
+      const data = await response.json();
+      console.log('Upload response:', data);
+      
+      if (data.success) {
+        // Try different response formats
+        let filename = null;
+        let publicUrl = null;
+        
+        // Check for filename in various places
+        if (data.filename) {
+          filename = data.filename;
+        } else if (data.asset?.filename) {
+          filename = data.asset.filename;
+        } else if (data.file_url) {
+          // Extract filename from file_url
+          const urlParts = data.file_url.split('/');
+          filename = urlParts[urlParts.length - 1];
+        }
+        
+        // Check for public_url or file_url (might be full URL or relative)
+        if (data.public_url) {
+          publicUrl = data.public_url;
+        } else if (data.asset?.public_url) {
+          publicUrl = data.asset.public_url;
+        } else if (data.file_url) {
+          publicUrl = data.file_url;
+        }
+        
+        // If we have a URL but it's relative (starts with /), make it absolute
+        if (publicUrl && publicUrl.startsWith('/')) {
+          const baseUrl = await getApiUrl('');
+          publicUrl = `${baseUrl}${publicUrl}`;
+        }
+        
+        // If we still don't have a URL but have a filename, construct it
+        if (!publicUrl && filename) {
+          publicUrl = await getPublicUrl(filename);
+        }
+        
+        console.log('Extracted filename:', filename);
+        console.log('Constructed publicUrl:', publicUrl);
+        
+        if (publicUrl) {
+          setAssetsRefreshTrigger(prev => prev + 1);
+          return publicUrl;
+        } else {
+          console.error('Upload succeeded but no URL found in response:', data);
+          return null;
+        }
+      } else {
+        console.error('Upload failed:', data.message || 'Unknown error');
+        return null;
+      }
+    } catch (error) {
+      console.error('Upload failed:', error);
+      return null;
+    }
+  };
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>, key: string) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    console.log('Starting file upload for header background', key);
+    const url = await handleUploadFile(file);
+    console.log('Upload completed, URL:', url);
+    
+    if (url) {
+      console.log('Setting imageUrl to:', url);
+      updateHeaderBackground(key, { imageUrl: url });
+    } else {
+      console.error('Failed to get URL from upload');
+    }
+
+    if (fileInputRefs.current[key]) {
+      fileInputRefs.current[key]!.value = '';
+    }
+  };
+
+  const handleAssetSelect = (url: string) => {
+    if (url && currentHeaderBgKey) {
+      console.log('Asset selected, setting imageUrl to:', url);
+      updateHeaderBackground(currentHeaderBgKey, { imageUrl: url });
+      setShowAssetPicker(false);
+      setCurrentHeaderBgKey(null);
+    }
+  };
+
+  const openAssetPicker = (key: string) => {
+    setCurrentHeaderBgKey(key);
+    setShowAssetPicker(true);
   };
   
   // Get widgets from screen content
@@ -459,13 +591,42 @@ const Canvas: React.FC<CanvasProps> = ({
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-xs font-medium text-gray-600 mb-1">Image URL</label>
-                          <input
-                            type="text"
-                            value={bg.imageUrl}
-                            onChange={(e) => updateHeaderBackground(key, { imageUrl: e.target.value })}
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            placeholder="https://example.com/image.jpg"
-                          />
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={bg.imageUrl}
+                              onChange={(e) => updateHeaderBackground(key, { imageUrl: e.target.value })}
+                              className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              placeholder="https://example.com/image.jpg"
+                            />
+                            <input
+                              ref={(el) => {
+                                if (el) {
+                                  fileInputRefs.current[key] = el;
+                                }
+                              }}
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => handleFileSelect(e, key)}
+                              className="hidden"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => fileInputRefs.current[key]?.click()}
+                              className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center gap-1"
+                              title="Upload image"
+                            >
+                              <Upload size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openAssetPicker(key)}
+                              className="px-3 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors flex items-center gap-1"
+                              title="Select from assets"
+                            >
+                              <ImageIcon size={14} />
+                            </button>
+                          </div>
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
@@ -996,7 +1157,37 @@ const Canvas: React.FC<CanvasProps> = ({
       </div>
       )}
 
-
+      {/* Asset Picker Modal */}
+      {showAssetPicker && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg w-[90vw] max-w-6xl h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-800">Pilih atau Upload Asset</h3>
+              <button
+                onClick={() => {
+                  setShowAssetPicker(false);
+                  setCurrentHeaderBgKey(null);
+                }}
+                className="p-1 text-gray-600 hover:text-gray-800 rounded"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <AssetsManager 
+                authSeed={authSeed || localStorage.getItem('adminAuthSeed') || ''}
+                refreshTrigger={assetsRefreshTrigger}
+                onAssetSelect={handleAssetSelect}
+              />
+              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800 mb-2">
+                  <strong>Petunjuk:</strong> Klik langsung pada gambar untuk memilih dan menerapkan ke field Image URL secara otomatis.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
