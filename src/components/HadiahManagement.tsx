@@ -1,17 +1,15 @@
-import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import { 
   Gift, 
   Plus, 
-  Trash2, 
   X,
   AlertCircle,
   CheckCircle,
   Search,
-  ChevronDown,
-  ChevronUp,
   Upload
 } from 'lucide-react';
 import { X_TOKEN_VALUE, getApiUrl } from '../config/api';
+import { getCachedHadiahConfig, setCachedHadiahConfig, mergeHadiahConfig } from '../utils/hadiahCache';
 
 // Types for hadiah management
 interface Hadiah {
@@ -49,11 +47,9 @@ export interface HadiahManagementRef {
 
 const HadiahManagement = forwardRef<HadiahManagementRef, HadiahManagementProps>(({ authSeed, onStatsChange }, ref) => {
   const [hadiahConfig, setHadiahConfig] = useState<HadiahConfig | null>(null);
-  const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterKategori, setFilterKategori] = useState<string>('all');
-  const [expandedHadiah, setExpandedHadiah] = useState<Set<number>>(new Set());
   const [newHadiah, setNewHadiah] = useState<Partial<Hadiah>>({
     nama: '',
     poin: 100,
@@ -64,25 +60,16 @@ const HadiahManagement = forwardRef<HadiahManagementRef, HadiahManagementProps>(
   });
   const [imagePreview, setImagePreview] = useState<{ [key: number]: string }>({});
   const [uploadingImage, setUploadingImage] = useState<number | null>(null);
+  const hasLoadedRef = useRef(false);
 
-  useEffect(() => {
-    loadHadiahConfig();
-  }, [authSeed]);
-
-  // Notify parent when hadiahConfig changes
-  useEffect(() => {
-    if (onStatsChange && hadiahConfig) {
-      onStatsChange(hadiahConfig.metadata.total_hadiah || 0);
-    }
-  }, [hadiahConfig?.metadata.total_hadiah, onStatsChange]);
-
-  const loadHadiahConfig = async () => {
+  const loadHadiahConfig = useCallback(async (background = false) => {
     try {
-      setLoading(true);
       const sessionKey = localStorage.getItem('adminSessionKey');
       
       if (!sessionKey) {
-        setMessage({ type: 'error', text: 'No admin session found' });
+        if (!background) {
+          setMessage({ type: 'error', text: 'No admin session found' });
+        }
         return;
       }
 
@@ -102,20 +89,66 @@ const HadiahManagement = forwardRef<HadiahManagementRef, HadiahManagementProps>(
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.config) {
-          setHadiahConfig(data.config);
+          setHadiahConfig(prev => {
+            if (prev && JSON.stringify(prev) === JSON.stringify(data.config)) {
+              return prev;
+            }
+            return mergeHadiahConfig(prev, data.config);
+          });
         } else {
-          setMessage({ type: 'error', text: data.message || 'Failed to load hadiah configuration' });
+          if (!background) {
+            setMessage({ type: 'error', text: data.message || 'Failed to load hadiah configuration' });
+          }
         }
       } else {
-        setMessage({ type: 'error', text: 'Failed to load hadiah configuration' });
+        if (!background) {
+          setMessage({ type: 'error', text: 'Failed to load hadiah configuration' });
+        }
       }
     } catch (error) {
       console.error('Error loading hadiah config:', error);
-      setMessage({ type: 'error', text: 'Error loading hadiah configuration' });
-    } finally {
-      setLoading(false);
+      if (!background) {
+        setMessage({ type: 'error', text: 'Error loading hadiah configuration' });
+      }
     }
-  };
+  }, [authSeed]);
+
+  const prevHadiahConfigRef = useRef<HadiahConfig | null>(null);
+
+  useEffect(() => {
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
+
+    // Load from cache immediately
+    const cached = getCachedHadiahConfig();
+    if (cached) {
+      prevHadiahConfigRef.current = cached;
+      setHadiahConfig(cached);
+    }
+
+    // Fetch from API in background
+    loadHadiahConfig(true);
+  }, [loadHadiahConfig]);
+
+  // Update cache when hadiahConfig changes (but not if it's the same as previous)
+  useEffect(() => {
+    if (hadiahConfig && prevHadiahConfigRef.current !== hadiahConfig) {
+      // Only update cache if config actually changed
+      if (!prevHadiahConfigRef.current || 
+          JSON.stringify(prevHadiahConfigRef.current) !== JSON.stringify(hadiahConfig)) {
+        setCachedHadiahConfig(hadiahConfig);
+        prevHadiahConfigRef.current = hadiahConfig;
+      }
+    }
+  }, [hadiahConfig]);
+
+  // Notify parent when hadiahConfig changes
+  useEffect(() => {
+    if (onStatsChange && hadiahConfig) {
+      onStatsChange(hadiahConfig.metadata.total_hadiah || 0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hadiahConfig?.metadata.total_hadiah]);
 
   const saveHadiahConfig = async () => {
     if (!hadiahConfig) return;
@@ -226,16 +259,143 @@ const HadiahManagement = forwardRef<HadiahManagementRef, HadiahManagementProps>(
     });
   };
 
-  const toggleHadiah = (id: number) => {
-    setExpandedHadiah(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(id)) {
-        newSet.delete(id);
-      } else {
-        newSet.add(id);
-      }
-      return newSet;
-    });
+  const renderHadiahRow = (hadiah: Hadiah) => {
+    return (
+      <div
+        key={hadiah.id}
+        className="flex gap-3 p-2 bg-white rounded border border-gray-200 hover:bg-gray-50"
+      >
+        {/* ID */}
+        <div className="flex-shrink-0 w-16 flex items-start">
+          <span className="text-xs font-mono text-gray-500">{hadiah.id}</span>
+        </div>
+        
+        {/* Separator */}
+        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+        
+        {/* Nama */}
+        <div className="flex-shrink-0 w-1/6 flex items-start">
+          <input
+            type="text"
+            value={hadiah.nama}
+            onChange={(e) => updateHadiah(hadiah.id, 'nama', e.target.value)}
+            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            placeholder="Nama hadiah"
+          />
+        </div>
+        
+        {/* Separator */}
+        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+        
+        {/* Poin */}
+        <div className="flex-shrink-0 w-20 flex items-start">
+          <input
+            type="number"
+            value={hadiah.poin}
+            onChange={(e) => updateHadiah(hadiah.id, 'poin', parseInt(e.target.value) || 0)}
+            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            min="1"
+          />
+        </div>
+        
+        {/* Separator */}
+        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+        
+        {/* Kategori */}
+        <div className="flex-shrink-0 w-24 flex items-start">
+          <select
+            value={hadiah.kategori}
+            onChange={(e) => updateHadiah(hadiah.id, 'kategori', e.target.value)}
+            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          >
+            {kategoriOptions.map(kategori => (
+              <option key={kategori} value={kategori}>
+                {kategori.charAt(0).toUpperCase() + kategori.slice(1)}
+              </option>
+            ))}
+          </select>
+        </div>
+        
+        {/* Separator */}
+        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+        
+        {/* Deskripsi */}
+        <div className="flex-1 min-w-0 flex items-start">
+          <input
+            type="text"
+            value={hadiah.deskripsi}
+            onChange={(e) => updateHadiah(hadiah.id, 'deskripsi', e.target.value)}
+            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            placeholder="Deskripsi"
+          />
+        </div>
+        
+        {/* Separator */}
+        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+        
+        {/* Image */}
+        <div className="flex-shrink-0 w-32 flex items-start">
+          <div className="w-full space-y-1">
+            <input
+              type="url"
+              value={imagePreview[hadiah.id] || hadiah.image_url}
+              onChange={(e) => updateHadiah(hadiah.id, 'image_url', e.target.value)}
+              className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              placeholder="Image URL"
+            />
+            <label className="block px-2 py-0.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer text-center">
+              <Upload className="h-3 w-3 inline mr-1" />
+              Upload
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    handleImageUpload(file, hadiah.id);
+                  }
+                }}
+              />
+            </label>
+            {uploadingImage === hadiah.id && (
+              <div className="text-xs text-gray-600 text-center">
+                Uploading...
+              </div>
+            )}
+          </div>
+        </div>
+        
+        {/* Separator */}
+        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+        
+        {/* Status */}
+        <div className="flex-shrink-0 w-24 flex items-start">
+          <select
+            value={hadiah.status}
+            onChange={(e) => updateHadiah(hadiah.id, 'status', e.target.value)}
+            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          >
+            <option value="aktif">Aktif</option>
+            <option value="tidak aktif">Tidak Aktif</option>
+          </select>
+        </div>
+        
+        {/* Separator */}
+        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+        
+        {/* Actions */}
+        <div className="flex-shrink-0 w-20 flex items-start">
+          <button
+            onClick={() => removeHadiah(hadiah.id)}
+            className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+            title="Hapus hadiah"
+          >
+            Hapus
+          </button>
+        </div>
+      </div>
+    );
   };
 
   const filteredHadiah = hadiahConfig?.hadiah.filter(hadiah => {
@@ -267,18 +427,6 @@ const HadiahManagement = forwardRef<HadiahManagementRef, HadiahManagementProps>(
     }
   };
 
-  const getImageUrl = (hadiah: Hadiah) => {
-    // Return preview if available, otherwise return the image_url
-    return imagePreview[hadiah.id] || hadiah.image_url;
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -418,159 +566,31 @@ const HadiahManagement = forwardRef<HadiahManagementRef, HadiahManagementProps>(
       </div>
 
       {/* Hadiah List */}
-      <div className="space-y-3">
-        {filteredHadiah.map((hadiah) => (
-          <div key={hadiah.id} className="bg-white rounded-lg border border-gray-200">
-            <div className="p-4 flex items-center justify-between">
-              <button
-                onClick={() => toggleHadiah(hadiah.id)}
-                className="flex items-center space-x-3 hover:bg-gray-50 p-2 rounded-md flex-1"
-              >
-                <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
-                  {getImageUrl(hadiah) ? (
-                    <img 
-                      src={getImageUrl(hadiah)} 
-                      alt={hadiah.nama}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                        e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                      }}
-                    />
-                  ) : null}
-                  <Gift className={`h-6 w-6 text-indigo-500 ${getImageUrl(hadiah) ? 'hidden' : ''}`} />
-                </div>
-                <div className="text-left">
-                  <h3 className="text-sm font-semibold text-gray-900">{hadiah.nama}</h3>
-                  <p className="text-xs text-gray-600">
-                    {hadiah.poin} poin • {hadiah.kategori} • {hadiah.status}
-                  </p>
-                </div>
-              </button>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => removeHadiah(hadiah.id)}
-                  className="text-red-500 hover:text-red-700 p-1"
-                  title="Hapus hadiah"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-                {expandedHadiah.has(hadiah.id) ? (
-                  <ChevronUp className="h-4 w-4 text-gray-400" />
-                ) : (
-                  <ChevronDown className="h-4 w-4 text-gray-400" />
-                )}
-              </div>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="p-4">
+          <div className="mb-3 pb-2 border-b border-gray-200">
+            <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
+              <div className="flex-shrink-0 w-16">ID</div>
+              <div className="flex-shrink-0 text-gray-400">|</div>
+              <div className="flex-shrink-0 w-1/6">Nama</div>
+              <div className="flex-shrink-0 text-gray-400">|</div>
+              <div className="flex-shrink-0 w-20">Poin</div>
+              <div className="flex-shrink-0 text-gray-400">|</div>
+              <div className="flex-shrink-0 w-24">Kategori</div>
+              <div className="flex-shrink-0 text-gray-400">|</div>
+              <div className="flex-1 min-w-0">Deskripsi</div>
+              <div className="flex-shrink-0 text-gray-400">|</div>
+              <div className="flex-shrink-0 w-32">Image</div>
+              <div className="flex-shrink-0 text-gray-400">|</div>
+              <div className="flex-shrink-0 w-24">Status</div>
+              <div className="flex-shrink-0 text-gray-400">|</div>
+              <div className="flex-shrink-0 w-20">Aksi</div>
             </div>
-            
-            {expandedHadiah.has(hadiah.id) && (
-              <div className="px-4 pb-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-medium text-gray-700">Nama:</label>
-                    <input
-                      type="text"
-                      value={hadiah.nama}
-                      onChange={(e) => updateHadiah(hadiah.id, 'nama', e.target.value)}
-                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-700">Poin:</label>
-                    <input
-                      type="number"
-                      value={hadiah.poin}
-                      onChange={(e) => updateHadiah(hadiah.id, 'poin', parseInt(e.target.value) || 0)}
-                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                      min="1"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-700">Kategori:</label>
-                    <select
-                      value={hadiah.kategori}
-                      onChange={(e) => updateHadiah(hadiah.id, 'kategori', e.target.value)}
-                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    >
-                      {kategoriOptions.map(kategori => (
-                        <option key={kategori} value={kategori}>
-                          {kategori.charAt(0).toUpperCase() + kategori.slice(1)}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-700">Status:</label>
-                    <select
-                      value={hadiah.status}
-                      onChange={(e) => updateHadiah(hadiah.id, 'status', e.target.value)}
-                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    >
-                      <option value="aktif">Aktif</option>
-                      <option value="tidak aktif">Tidak Aktif</option>
-                    </select>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="text-xs font-medium text-gray-700">Deskripsi:</label>
-                    <input
-                      type="text"
-                      value={hadiah.deskripsi}
-                      onChange={(e) => updateHadiah(hadiah.id, 'deskripsi', e.target.value)}
-                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="text-xs font-medium text-gray-700">Image:</label>
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="url"
-                          value={hadiah.image_url}
-                          onChange={(e) => updateHadiah(hadiah.id, 'image_url', e.target.value)}
-                          className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          placeholder="Image URL"
-                        />
-                        <label className="px-3 py-1 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 cursor-pointer flex items-center space-x-1">
-                          <Upload className="h-3 w-3" />
-                          <span>Upload</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                handleImageUpload(file, hadiah.id);
-                              }
-                            }}
-                          />
-                        </label>
-                      </div>
-                      {getImageUrl(hadiah) && (
-                        <div className="w-20 h-20 rounded-lg overflow-hidden bg-gray-100">
-                          <img 
-                            src={getImageUrl(hadiah)} 
-                            alt={hadiah.nama}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
-                            }}
-                          />
-                        </div>
-                      )}
-                      {uploadingImage === hadiah.id && (
-                        <div className="flex items-center space-x-2 text-xs text-gray-600">
-                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-indigo-600"></div>
-                          <span>Uploading image...</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
-        ))}
+          <div className="space-y-2">
+            {filteredHadiah.map((hadiah) => renderHadiahRow(hadiah))}
+          </div>
+        </div>
       </div>
 
       {filteredHadiah.length === 0 && (

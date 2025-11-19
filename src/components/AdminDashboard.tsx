@@ -58,6 +58,15 @@ import { preloadBroadcastClasses } from "../utils/broadcastCache";
 import { preloadChatConversations } from "../utils/chatCache";
 import { preloadAnalytics } from "../utils/analyticsCache";
 import { preloadSessions } from "../utils/sessionCache";
+import { preloadSystemSettings } from "../utils/systemSettingsCache";
+import { preloadHadiahConfig } from "../utils/hadiahCache";
+import { preloadPromoConfig } from "../utils/promoCache";
+import { preloadAssets } from "../utils/assetsCache";
+import { preloadMarkdownFiles } from "../utils/markdownCache";
+import { preloadPrivacyPolicy } from "../utils/privacyPolicyCache";
+import { preloadFeedback } from "../utils/feedbackCache";
+import { preloadSystemLogs } from "../utils/systemLogsCache";
+import { preloadSecurityManagement } from "../utils/securityManagementCache";
 import { useGlobalChatWebSocket } from "../hooks/useGlobalChatWebSocket";
 import { getCachedConversations } from "../utils/chatCache";
 
@@ -289,6 +298,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     preloadAnalytics(authSeed);
     // Preload sessions for cache-first pattern
     preloadSessions(authSeed);
+    // Preload system settings for cache-first pattern
+    preloadSystemSettings(authSeed);
+    // Preload hadiah config for cache-first pattern
+    preloadHadiahConfig(authSeed);
+    // Preload promo config for cache-first pattern
+    preloadPromoConfig(authSeed);
+    // Preload assets for cache-first pattern
+    preloadAssets(authSeed, { page: 1, searchTerm: '' });
+    // Preload markdown files for cache-first pattern
+    preloadMarkdownFiles(authSeed);
+    // Preload privacy policy for cache-first pattern
+    preloadPrivacyPolicy(authSeed);
+    // Preload feedback for cache-first pattern
+    preloadFeedback(authSeed, { page: 1, searchTerm: '' });
+    // Preload system logs for cache-first pattern
+    preloadSystemLogs(authSeed, {
+      searchTerm: '',
+      actionType: '',
+      adminUser: '',
+      dateFrom: '',
+      dateTo: '',
+    });
+    // Preload security management for cache-first pattern
+    preloadSecurityManagement(authSeed);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

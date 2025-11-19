@@ -12,6 +12,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { X_TOKEN_VALUE, getApiUrl } from "../config/api";
+import { getCachedSystemSettings, setCachedSystemSettings } from "../utils/systemSettingsCache";
 
 // Dynamic type for any app rules
 type AppRules = Record<string, any>;
@@ -93,17 +94,6 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
       null,
     );
     // Removed appInfoConfig state
-    const [loading, setLoading] = useState(true);
-    const [loadingStates, setLoadingStates] = useState({
-      appRules: true,
-      infoConfig: true,
-      tiketRegex: true,
-      checkProducts: true,
-      combotrx: true,
-      cektagihan: true,
-      receiptMaps: true,
-      bantuan: true,
-    });
     const [message, setMessage] = useState<{
       type: "success" | "error";
       text: string;
@@ -129,57 +119,77 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
     const [appRulesOrder, setAppRulesOrder] = useState<string[]>([]);
 
     useEffect(() => {
-      loadAppRules();
-      loadInfoConfig();
-      loadTiketRegexConfig();
-      loadCheckProductsConfig();
-      loadCombotrxConfig();
-      loadCektagihanConfig();
-      loadReceiptMapsConfig();
-      loadBantuanConfig();
-    }, []);
-
-    // Update main loading state based on individual loading states
-    useEffect(() => {
-      setLoading(
-        loadingStates.appRules ||
-          loadingStates.infoConfig ||
-          loadingStates.tiketRegex ||
-          loadingStates.checkProducts ||
-          loadingStates.combotrx ||
-          loadingStates.cektagihan ||
-          loadingStates.receiptMaps ||
-          loadingStates.bantuan,
-      );
-    }, [loadingStates]);
-
-    // Set initial active tab to first available config when loading completes
-    useEffect(() => {
-      if (!loading) {
-        // Only set if current tab's config doesn't exist
-        const currentTabHasConfig = 
-          (activeTab === "info_config" && infoConfig) ||
-          (activeTab === "tiket_regex" && tiketRegexConfig) ||
-          (activeTab === "check_products" && checkProductsConfig) ||
-          (activeTab === "combotrx_config" && combotrxConfig) ||
-          (activeTab === "cektagihan_config" && cektagihanConfig) ||
-          (activeTab === "receipt_maps_config" && receiptMapsConfig) ||
-          (activeTab === "bantuan_config" && bantuanConfig) ||
-          (activeTab === "textEditing" && appRules);
-
-        if (!currentTabHasConfig) {
-          // Set to first available tab
-          if (infoConfig) setActiveTab("info_config");
-          else if (tiketRegexConfig) setActiveTab("tiket_regex");
-          else if (checkProductsConfig) setActiveTab("check_products");
-          else if (combotrxConfig) setActiveTab("combotrx_config");
-          else if (cektagihanConfig) setActiveTab("cektagihan_config");
-          else if (receiptMapsConfig) setActiveTab("receipt_maps_config");
-          else if (bantuanConfig) setActiveTab("bantuan_config");
-          else if (appRules) setActiveTab("textEditing");
+      // Load from cache immediately
+      const cached = getCachedSystemSettings();
+      if (cached) {
+        if (cached.appRules) {
+          setAppRules(cached.appRules);
+          setAppRulesOrder(Object.keys(cached.appRules));
+        }
+        if (cached.infoConfig) {
+          setInfoConfig(cached.infoConfig);
+          setInfoConfigOrder(Object.keys(cached.infoConfig));
+        }
+        if (cached.tiketRegexConfig) {
+          setTiketRegexConfig(cached.tiketRegexConfig);
+          setTiketRegexConfigOrder(Object.keys(cached.tiketRegexConfig));
+        }
+        if (cached.checkProductsConfig) {
+          setCheckProductsConfig(cached.checkProductsConfig);
+          setCheckProductsConfigOrder(Object.keys(cached.checkProductsConfig));
+        }
+        if (cached.combotrxConfig) {
+          setCombotrxConfig(cached.combotrxConfig);
+          setCombotrxConfigOrder(Object.keys(cached.combotrxConfig));
+        }
+        if (cached.cektagihanConfig) {
+          setCektagihanConfig(cached.cektagihanConfig);
+          setCektagihanConfigOrder(Object.keys(cached.cektagihanConfig));
+        }
+        if (cached.receiptMapsConfig) {
+          setReceiptMapsConfig(cached.receiptMapsConfig);
+        }
+        if (cached.bantuanConfig) {
+          setBantuanConfig(cached.bantuanConfig);
         }
       }
-    }, [loading, infoConfig, tiketRegexConfig, checkProductsConfig, combotrxConfig, cektagihanConfig, receiptMapsConfig, bantuanConfig, appRules, activeTab]);
+
+      // Fetch from API in background
+      loadAppRules(true);
+      loadInfoConfig(true);
+      loadTiketRegexConfig(true);
+      loadCheckProductsConfig(true);
+      loadCombotrxConfig(true);
+      loadCektagihanConfig(true);
+      loadReceiptMapsConfig(true);
+      loadBantuanConfig(true);
+    }, []);
+
+    // Set initial active tab to first available config
+    useEffect(() => {
+      // Only set if current tab's config doesn't exist
+      const currentTabHasConfig = 
+        (activeTab === "info_config" && infoConfig) ||
+        (activeTab === "tiket_regex" && tiketRegexConfig) ||
+        (activeTab === "check_products" && checkProductsConfig) ||
+        (activeTab === "combotrx_config" && combotrxConfig) ||
+        (activeTab === "cektagihan_config" && cektagihanConfig) ||
+        (activeTab === "receipt_maps_config" && receiptMapsConfig) ||
+        (activeTab === "bantuan_config" && bantuanConfig) ||
+        (activeTab === "textEditing" && appRules);
+
+      if (!currentTabHasConfig) {
+        // Set to first available tab
+        if (infoConfig) setActiveTab("info_config");
+        else if (tiketRegexConfig) setActiveTab("tiket_regex");
+        else if (checkProductsConfig) setActiveTab("check_products");
+        else if (combotrxConfig) setActiveTab("combotrx_config");
+        else if (cektagihanConfig) setActiveTab("cektagihan_config");
+        else if (receiptMapsConfig) setActiveTab("receipt_maps_config");
+        else if (bantuanConfig) setActiveTab("bantuan_config");
+        else if (appRules) setActiveTab("textEditing");
+      }
+    }, [infoConfig, tiketRegexConfig, checkProductsConfig, combotrxConfig, cektagihanConfig, receiptMapsConfig, bantuanConfig, appRules, activeTab]);
 
     // Synchronize local cektagihan keys with cektagihan config
     useEffect(() => {
@@ -192,13 +202,16 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
       }
     }, [cektagihanConfig]);
 
-    const loadAppRules = async () => {
+    const loadAppRules = async (background = false) => {
       try {
-        setLoadingStates((prev) => ({ ...prev, appRules: true }));
         const sessionKey = localStorage.getItem("adminSessionKey");
         if (!sessionKey) {
-          setMessage({ type: "error", text: "Session tidak valid" });
-          setAppRules(getDefaultRules());
+          if (!background) {
+            setMessage({ type: "error", text: "Session tidak valid" });
+          }
+          if (!appRules) {
+            setAppRules(getDefaultRules());
+          }
           return;
         }
 
@@ -217,47 +230,66 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.rules) {
-            setAppRules(data.rules);
+            setAppRules(prev => {
+              if (prev && JSON.stringify(prev) === JSON.stringify(data.rules)) {
+                return prev;
+              }
+              return data.rules;
+            });
             setAppRulesOrder(Object.keys(data.rules));
+            setCachedSystemSettings({ appRules: data.rules });
           } else {
+            if (!background) {
+              setMessage({
+                type: "error",
+                text: data.message || "Gagal memuat pengaturan",
+              });
+            }
+            if (!appRules) {
+              const defaultRules = getDefaultRules();
+              setAppRules(defaultRules);
+              setAppRulesOrder(Object.keys(defaultRules));
+            }
+          }
+        } else {
+          if (!background) {
+            setMessage({
+              type: "error",
+              text: "Gagal memuat pengaturan dari server",
+            });
+          }
+          if (!appRules) {
             const defaultRules = getDefaultRules();
             setAppRules(defaultRules);
             setAppRulesOrder(Object.keys(defaultRules));
-            setMessage({
-              type: "error",
-              text: data.message || "Gagal memuat pengaturan",
-            });
           }
-        } else {
-          const defaultRules = getDefaultRules();
-          setAppRules(defaultRules);
-          setAppRulesOrder(Object.keys(defaultRules));
-          setMessage({
-            type: "error",
-            text: "Gagal memuat pengaturan dari server",
-          });
         }
       } catch (error) {
         console.error("Failed to load app rules:", error);
-        const defaultRules = getDefaultRules();
-        setAppRules(defaultRules);
-        setAppRulesOrder(Object.keys(defaultRules));
-        setMessage({
-          type: "error",
-          text: "Terjadi kesalahan saat memuat pengaturan",
-        });
-      } finally {
-        setLoadingStates((prev) => ({ ...prev, appRules: false }));
+        if (!background) {
+          setMessage({
+            type: "error",
+            text: "Terjadi kesalahan saat memuat pengaturan",
+          });
+        }
+        if (!appRules) {
+          const defaultRules = getDefaultRules();
+          setAppRules(defaultRules);
+          setAppRulesOrder(Object.keys(defaultRules));
+        }
       }
     };
 
-    const loadInfoConfig = async () => {
+    const loadInfoConfig = async (background = false) => {
       try {
-        setLoadingStates((prev) => ({ ...prev, infoConfig: true }));
         const sessionKey = localStorage.getItem("adminSessionKey");
         if (!sessionKey) {
-          setMessage({ type: "error", text: "Session tidak valid" });
-          setInfoConfig(getDefaultInfoConfig());
+          if (!background) {
+            setMessage({ type: "error", text: "Session tidak valid" });
+          }
+          if (!infoConfig) {
+            setInfoConfig(getDefaultInfoConfig());
+          }
           return;
         }
 
@@ -276,45 +308,64 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.config) {
-            setInfoConfig(data.config);
+            setInfoConfig(prev => {
+              if (prev && JSON.stringify(prev) === JSON.stringify(data.config)) {
+                return prev;
+              }
+              return data.config;
+            });
             setInfoConfigOrder(Object.keys(data.config));
+            setCachedSystemSettings({ infoConfig: data.config });
           } else {
+            if (!background) {
+              setMessage({
+                type: "error",
+                text: data.message || "Gagal memuat konfigurasi info",
+              });
+            }
+            if (!infoConfig) {
+              const defaultConfig = getDefaultInfoConfig();
+              setInfoConfig(defaultConfig);
+              setInfoConfigOrder(Object.keys(defaultConfig));
+            }
+          }
+        } else {
+          if (!background) {
+            setMessage({
+              type: "error",
+              text: "Gagal memuat konfigurasi info dari server",
+            });
+          }
+          if (!infoConfig) {
             const defaultConfig = getDefaultInfoConfig();
             setInfoConfig(defaultConfig);
             setInfoConfigOrder(Object.keys(defaultConfig));
-            setMessage({
-              type: "error",
-              text: data.message || "Gagal memuat konfigurasi info",
-            });
           }
-        } else {
-          const defaultConfig = getDefaultInfoConfig();
-          setInfoConfig(defaultConfig);
-          setInfoConfigOrder(Object.keys(defaultConfig));
-          setMessage({
-            type: "error",
-            text: "Gagal memuat konfigurasi info dari server",
-          });
         }
       } catch (error) {
         console.error("Failed to load info config:", error);
-        setMessage({
-          type: "error",
-          text: "Terjadi kesalahan saat memuat konfigurasi info",
-        });
-        setInfoConfig(getDefaultInfoConfig());
-      } finally {
-        setLoadingStates((prev) => ({ ...prev, infoConfig: false }));
+        if (!background) {
+          setMessage({
+            type: "error",
+            text: "Terjadi kesalahan saat memuat konfigurasi info",
+          });
+        }
+        if (!infoConfig) {
+          setInfoConfig(getDefaultInfoConfig());
+        }
       }
     };
 
-    const loadTiketRegexConfig = async () => {
+    const loadTiketRegexConfig = async (background = false) => {
       try {
-        setLoadingStates((prev) => ({ ...prev, tiketRegex: true }));
         const sessionKey = localStorage.getItem("adminSessionKey");
         if (!sessionKey) {
-          setMessage({ type: "error", text: "Session tidak valid" });
-          setTiketRegexConfig(getDefaultTiketRegexConfig());
+          if (!background) {
+            setMessage({ type: "error", text: "Session tidak valid" });
+          }
+          if (!tiketRegexConfig) {
+            setTiketRegexConfig(getDefaultTiketRegexConfig());
+          }
           return;
         }
 
@@ -333,45 +384,64 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.config) {
-            setTiketRegexConfig(data.config);
+            setTiketRegexConfig(prev => {
+              if (prev && JSON.stringify(prev) === JSON.stringify(data.config)) {
+                return prev;
+              }
+              return data.config;
+            });
             setTiketRegexConfigOrder(Object.keys(data.config));
+            setCachedSystemSettings({ tiketRegexConfig: data.config });
           } else {
+            if (!background) {
+              setMessage({
+                type: "error",
+                text: data.message || "Gagal memuat konfigurasi tiket regex",
+              });
+            }
+            if (!tiketRegexConfig) {
+              const defaultConfig = getDefaultTiketRegexConfig();
+              setTiketRegexConfig(defaultConfig);
+              setTiketRegexConfigOrder(Object.keys(defaultConfig));
+            }
+          }
+        } else {
+          if (!background) {
+            setMessage({
+              type: "error",
+              text: "Gagal memuat konfigurasi tiket regex dari server",
+            });
+          }
+          if (!tiketRegexConfig) {
             const defaultConfig = getDefaultTiketRegexConfig();
             setTiketRegexConfig(defaultConfig);
             setTiketRegexConfigOrder(Object.keys(defaultConfig));
-            setMessage({
-              type: "error",
-              text: data.message || "Gagal memuat konfigurasi tiket regex",
-            });
           }
-        } else {
-          const defaultConfig = getDefaultTiketRegexConfig();
-          setTiketRegexConfig(defaultConfig);
-          setTiketRegexConfigOrder(Object.keys(defaultConfig));
-          setMessage({
-            type: "error",
-            text: "Gagal memuat konfigurasi tiket regex dari server",
-          });
         }
       } catch (error) {
         console.error("Failed to load tiket regex config:", error);
-        setMessage({
-          type: "error",
-          text: "Terjadi kesalahan saat memuat konfigurasi tiket regex",
-        });
-        setTiketRegexConfig(getDefaultTiketRegexConfig());
-      } finally {
-        setLoadingStates((prev) => ({ ...prev, tiketRegex: false }));
+        if (!background) {
+          setMessage({
+            type: "error",
+            text: "Terjadi kesalahan saat memuat konfigurasi tiket regex",
+          });
+        }
+        if (!tiketRegexConfig) {
+          setTiketRegexConfig(getDefaultTiketRegexConfig());
+        }
       }
     };
 
-    const loadCheckProductsConfig = async () => {
+    const loadCheckProductsConfig = async (background = false) => {
       try {
-        setLoadingStates((prev) => ({ ...prev, checkProducts: true }));
         const sessionKey = localStorage.getItem("adminSessionKey");
         if (!sessionKey) {
-          setMessage({ type: "error", text: "Session tidak valid" });
-          setCheckProductsConfig(getDefaultCheckProductsConfig());
+          if (!background) {
+            setMessage({ type: "error", text: "Session tidak valid" });
+          }
+          if (!checkProductsConfig) {
+            setCheckProductsConfig(getDefaultCheckProductsConfig());
+          }
           return;
         }
 
@@ -390,37 +460,53 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.config) {
-            setCheckProductsConfig(data.config);
+            setCheckProductsConfig(prev => {
+              if (prev && JSON.stringify(prev) === JSON.stringify(data.config)) {
+                return prev;
+              }
+              return data.config;
+            });
             setCheckProductsConfigOrder(Object.keys(data.config));
+            setCachedSystemSettings({ checkProductsConfig: data.config });
           } else {
+            if (!background) {
+              setMessage({
+                type: "error",
+                text: data.message || "Gagal memuat konfigurasi cek produk",
+              });
+            }
+            if (!checkProductsConfig) {
+              const defaultConfig = getDefaultCheckProductsConfig();
+              setCheckProductsConfig(defaultConfig);
+              setCheckProductsConfigOrder(Object.keys(defaultConfig));
+            }
+          }
+        } else {
+          if (!background) {
+            setMessage({
+              type: "error",
+              text: "Gagal memuat konfigurasi cek produk dari server",
+            });
+          }
+          if (!checkProductsConfig) {
             const defaultConfig = getDefaultCheckProductsConfig();
             setCheckProductsConfig(defaultConfig);
             setCheckProductsConfigOrder(Object.keys(defaultConfig));
-            setMessage({
-              type: "error",
-              text: data.message || "Gagal memuat konfigurasi cek produk",
-            });
           }
-        } else {
-          const defaultConfig = getDefaultCheckProductsConfig();
-          setCheckProductsConfig(defaultConfig);
-          setCheckProductsConfigOrder(Object.keys(defaultConfig));
-          setMessage({
-            type: "error",
-            text: "Gagal memuat konfigurasi cek produk dari server",
-          });
         }
       } catch (error) {
         console.error("Failed to load check products config:", error);
-        const defaultConfig = getDefaultCheckProductsConfig();
-        setCheckProductsConfig(defaultConfig);
-        setCheckProductsConfigOrder(Object.keys(defaultConfig));
-        setMessage({
-          type: "error",
-          text: "Terjadi kesalahan saat memuat konfigurasi cek produk",
-        });
-      } finally {
-        setLoadingStates((prev) => ({ ...prev, checkProducts: false }));
+        if (!background) {
+          setMessage({
+            type: "error",
+            text: "Terjadi kesalahan saat memuat konfigurasi cek produk",
+          });
+        }
+        if (!checkProductsConfig) {
+          const defaultConfig = getDefaultCheckProductsConfig();
+          setCheckProductsConfig(defaultConfig);
+          setCheckProductsConfigOrder(Object.keys(defaultConfig));
+        }
       }
     };
 
@@ -519,13 +605,16 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
     });
 
     // Combotrx Configuration Functions
-    const loadCombotrxConfig = async () => {
+    const loadCombotrxConfig = async (background = false) => {
       try {
-        setLoadingStates((prev) => ({ ...prev, combotrx: true }));
         const sessionKey = localStorage.getItem("adminSessionKey");
         if (!sessionKey) {
-          setMessage({ type: "error", text: "Session tidak valid" });
-          setCombotrxConfig(getDefaultCombotrxConfig());
+          if (!background) {
+            setMessage({ type: "error", text: "Session tidak valid" });
+          }
+          if (!combotrxConfig) {
+            setCombotrxConfig(getDefaultCombotrxConfig());
+          }
           return;
         }
 
@@ -544,37 +633,53 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.config) {
-            setCombotrxConfig(data.config);
+            setCombotrxConfig(prev => {
+              if (prev && JSON.stringify(prev) === JSON.stringify(data.config)) {
+                return prev;
+              }
+              return data.config;
+            });
             setCombotrxConfigOrder(Object.keys(data.config));
+            setCachedSystemSettings({ combotrxConfig: data.config });
           } else {
+            if (!background) {
+              setMessage({
+                type: "error",
+                text: data.message || "Gagal memuat konfigurasi combotrx",
+              });
+            }
+            if (!combotrxConfig) {
+              const defaultConfig = getDefaultCombotrxConfig();
+              setCombotrxConfig(defaultConfig);
+              setCombotrxConfigOrder(Object.keys(defaultConfig));
+            }
+          }
+        } else {
+          if (!background) {
+            setMessage({
+              type: "error",
+              text: "Gagal memuat konfigurasi combotrx dari server",
+            });
+          }
+          if (!combotrxConfig) {
             const defaultConfig = getDefaultCombotrxConfig();
             setCombotrxConfig(defaultConfig);
             setCombotrxConfigOrder(Object.keys(defaultConfig));
-            setMessage({
-              type: "error",
-              text: data.message || "Gagal memuat konfigurasi combotrx",
-            });
           }
-        } else {
-          const defaultConfig = getDefaultCombotrxConfig();
-          setCombotrxConfig(defaultConfig);
-          setCombotrxConfigOrder(Object.keys(defaultConfig));
-          setMessage({
-            type: "error",
-            text: "Gagal memuat konfigurasi combotrx dari server",
-          });
         }
       } catch (error) {
         console.error("Failed to load combotrx config:", error);
-        const defaultConfig = getDefaultCombotrxConfig();
-        setCombotrxConfig(defaultConfig);
-        setCombotrxConfigOrder(Object.keys(defaultConfig));
-        setMessage({
-          type: "error",
-          text: "Terjadi kesalahan saat memuat konfigurasi combotrx",
-        });
-      } finally {
-        setLoadingStates((prev) => ({ ...prev, combotrx: false }));
+        if (!background) {
+          setMessage({
+            type: "error",
+            text: "Terjadi kesalahan saat memuat konfigurasi combotrx",
+          });
+        }
+        if (!combotrxConfig) {
+          const defaultConfig = getDefaultCombotrxConfig();
+          setCombotrxConfig(defaultConfig);
+          setCombotrxConfigOrder(Object.keys(defaultConfig));
+        }
       }
     };
 
@@ -720,13 +825,17 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
     };
 
     // Cektagihan Configuration Functions
-    const loadCektagihanConfig = async () => {
+    const loadCektagihanConfig = async (background = false) => {
       try {
-        setLoadingStates((prev) => ({ ...prev, cektagihan: true }));
         const sessionKey = localStorage.getItem("adminSessionKey");
 
         if (!sessionKey) {
-          setMessage({ type: "error", text: "No admin session found" });
+          if (!background) {
+            setMessage({ type: "error", text: "No admin session found" });
+          }
+          if (!cektagihanConfig) {
+            setCektagihanConfig(getDefaultCektagihanConfig());
+          }
           return;
         }
 
@@ -745,23 +854,33 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.config) {
-            setCektagihanConfig(data.config);
+            setCektagihanConfig(prev => {
+              if (prev && JSON.stringify(prev) === JSON.stringify(data.config)) {
+                return prev;
+              }
+              return data.config;
+            });
             setCektagihanConfigOrder(Object.keys(data.config));
+            setCachedSystemSettings({ cektagihanConfig: data.config });
           } else {
+            if (!cektagihanConfig) {
+              const defaultConfig = getDefaultCektagihanConfig();
+              setCektagihanConfig(defaultConfig);
+              setCektagihanConfigOrder(Object.keys(defaultConfig));
+            }
+          }
+        } else {
+          if (!cektagihanConfig) {
             const defaultConfig = getDefaultCektagihanConfig();
             setCektagihanConfig(defaultConfig);
             setCektagihanConfigOrder(Object.keys(defaultConfig));
           }
-        } else {
-          const defaultConfig = getDefaultCektagihanConfig();
-          setCektagihanConfig(defaultConfig);
-          setCektagihanConfigOrder(Object.keys(defaultConfig));
         }
       } catch (error) {
         console.error("Error loading cektagihan config:", error);
-        setCektagihanConfig(getDefaultCektagihanConfig());
-      } finally {
-        setLoadingStates((prev) => ({ ...prev, cektagihan: false }));
+        if (!cektagihanConfig) {
+          setCektagihanConfig(getDefaultCektagihanConfig());
+        }
       }
     };
 
@@ -938,18 +1057,22 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         if (newHeader && newHeader !== oldHeader) {
           updateCombotrxHeaderName(oldHeader, newHeader);
         }
-        e.currentTarget.blur();
+        (e.currentTarget as HTMLElement).blur();
       }
     };
 
     // Receipt Maps Configuration Functions
-    const loadReceiptMapsConfig = async () => {
+    const loadReceiptMapsConfig = async (background = false) => {
       try {
-        setLoadingStates((prev) => ({ ...prev, receiptMaps: true }));
         const sessionKey = localStorage.getItem("adminSessionKey");
 
         if (!sessionKey) {
-          setMessage({ type: "error", text: "No admin session found" });
+          if (!background) {
+            setMessage({ type: "error", text: "No admin session found" });
+          }
+          if (!receiptMapsConfig) {
+            setReceiptMapsConfig(getDefaultReceiptMapsConfig());
+          }
           return;
         }
 
@@ -968,18 +1091,28 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.config) {
-            setReceiptMapsConfig(data.config);
+            setReceiptMapsConfig(prev => {
+              if (prev && JSON.stringify(prev) === JSON.stringify(data.config)) {
+                return prev;
+              }
+              return data.config;
+            });
+            setCachedSystemSettings({ receiptMapsConfig: data.config });
           } else {
-            setReceiptMapsConfig(getDefaultReceiptMapsConfig());
+            if (!receiptMapsConfig) {
+              setReceiptMapsConfig(getDefaultReceiptMapsConfig());
+            }
           }
         } else {
-          setReceiptMapsConfig(getDefaultReceiptMapsConfig());
+          if (!receiptMapsConfig) {
+            setReceiptMapsConfig(getDefaultReceiptMapsConfig());
+          }
         }
       } catch (error) {
         console.error("Error loading receipt maps config:", error);
-        setReceiptMapsConfig(getDefaultReceiptMapsConfig());
-      } finally {
-        setLoadingStates((prev) => ({ ...prev, receiptMaps: false }));
+        if (!receiptMapsConfig) {
+          setReceiptMapsConfig(getDefaultReceiptMapsConfig());
+        }
       }
     };
 
@@ -1172,13 +1305,17 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
     };
 
     // Bantuan Configuration Functions
-    const loadBantuanConfig = async () => {
+    const loadBantuanConfig = async (background = false) => {
       try {
-        setLoadingStates((prev) => ({ ...prev, bantuan: true }));
         const sessionKey = localStorage.getItem("adminSessionKey");
 
         if (!sessionKey) {
-          setMessage({ type: "error", text: "No admin session found" });
+          if (!background) {
+            setMessage({ type: "error", text: "No admin session found" });
+          }
+          if (!bantuanConfig) {
+            setBantuanConfig(getDefaultBantuanConfig());
+          }
           return;
         }
 
@@ -1197,18 +1334,28 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.config) {
-            setBantuanConfig(data.config);
+            setBantuanConfig(prev => {
+              if (prev && JSON.stringify(prev) === JSON.stringify(data.config)) {
+                return prev;
+              }
+              return data.config;
+            });
+            setCachedSystemSettings({ bantuanConfig: data.config });
           } else {
-            setBantuanConfig(getDefaultBantuanConfig());
+            if (!bantuanConfig) {
+              setBantuanConfig(getDefaultBantuanConfig());
+            }
           }
         } else {
-          setBantuanConfig(getDefaultBantuanConfig());
+          if (!bantuanConfig) {
+            setBantuanConfig(getDefaultBantuanConfig());
+          }
         }
       } catch (error) {
         console.error("Error loading bantuan config:", error);
-        setBantuanConfig(getDefaultBantuanConfig());
-      } finally {
-        setLoadingStates((prev) => ({ ...prev, bantuan: false }));
+        if (!bantuanConfig) {
+          setBantuanConfig(getDefaultBantuanConfig());
+        }
       }
     };
 
@@ -1736,7 +1883,7 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
       "liveChatHelpFormat",
     ];
 
-    const shouldShowField = (key: string, value: any): boolean => {
+    const shouldShowField = (key: string): boolean => {
       if (EXCLUDED_KEYS.includes(key)) return false;
       
       if (!searchTerm) return true;
@@ -1909,7 +2056,7 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       updateKeyType(type, localBaseName);
-                      e.currentTarget.blur();
+                      (e.currentTarget as HTMLElement).blur();
                     }
                   }}
                   className="text-sm font-medium text-gray-900 bg-transparent border-b border-gray-300 focus:outline-none focus:border-blue-500 px-1 py-1 flex-1"
@@ -2002,38 +2149,7 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
       });
     };
 
-    if (loading) {
-      return (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-          <span className="ml-3 text-gray-600">
-            Memuat pengaturan sistem...
-          </span>
-        </div>
-      );
-    }
-
-    if (!appRules) {
-      return (
-        <div className="text-center py-12">
-          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
-            Gagal Memuat Pengaturan
-          </h3>
-          <p className="text-gray-600 mb-4">
-            Tidak dapat memuat konfigurasi sistem
-          </p>
-          <button
-            onClick={loadAppRules}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-          >
-            Coba Lagi
-          </button>
-        </div>
-      );
-    }
-
-    const groupedFields = groupFields(appRules);
+    const groupedFields = appRules ? groupFields(appRules) : {};
 
     // Individual save functions are available for each section
 
@@ -3067,11 +3183,11 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                 if (section === "textEditing" && appRulesOrder.length > 0) {
                   orderedFields = appRulesOrder
                     .map(key => [key, appRules?.[key]])
-                    .filter(([key, value]) => value !== undefined) as Array<[string, any]>;
+                    .filter(([, value]) => value !== undefined) as Array<[string, any]>;
                 }
 
                 const filteredFields = orderedFields.filter(
-                  ([key, value]) => shouldShowField(key, value),
+                  ([key]) => shouldShowField(key),
                 );
 
                 return (

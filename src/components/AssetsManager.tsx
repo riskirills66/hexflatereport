@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Trash2, 
   Copy, 
@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { getApiUrl, X_TOKEN_VALUE } from '../config/api';
 import Modal from '../styles/Modal';
+import { getCachedAssets, setCachedAssets, mergeAssets } from '../utils/assetsCache';
 
 interface AssetInfo {
   id: string;
@@ -39,7 +40,6 @@ interface AssetsManagerProps {
 
 const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger }) => {
   const [assets, setAssets] = useState<AssetInfo[]>([]);
-  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -54,17 +54,106 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
 
   const itemsPerPage = 20;
+  const hasLoadedRef = useRef(false);
+  const prevAssetsRef = useRef<AssetInfo[]>([]);
+  const prevTotalCountRef = useRef<number>(0);
+
+  const loadAssets = useCallback(async (background = false) => {
+    try {
+      const sessionKey = localStorage.getItem('adminSessionKey');
+      if (!sessionKey) {
+        if (!background) {
+          setMessage({ type: 'error', text: 'Session key not found. Please login again.' });
+        }
+        return;
+      }
+
+      const filters = {
+        page: currentPage,
+        searchTerm: searchTerm || '',
+      };
+
+      const apiUrl = await getApiUrl('/admin/assets/list');
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Token': X_TOKEN_VALUE,
+        },
+        body: JSON.stringify({
+          session_key: sessionKey,
+          auth_seed: authSeed,
+          page: currentPage,
+          limit: itemsPerPage,
+          search: searchTerm || undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setAssets(prev => {
+          if (prev.length === 0 || filters.page === 1 || filters.searchTerm !== '') {
+            // Replace for first page or new search
+            return data.assets || [];
+          } else {
+            // Merge for pagination
+            return mergeAssets(prev, data.assets || [], false);
+          }
+        });
+        setTotalCount(data.total_count || 0);
+        setCachedAssets(filters, {
+          success: true,
+          assets: data.assets || [],
+          total_count: data.total_count || 0,
+          page: currentPage,
+          limit: itemsPerPage,
+        });
+      } else {
+        if (!background) {
+          setMessage({ type: 'error', text: data.message || 'Failed to load assets' });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load assets:', error);
+      if (!background) {
+        setMessage({ type: 'error', text: 'Failed to load assets' });
+      }
+    }
+  }, [authSeed, currentPage, searchTerm, itemsPerPage]);
 
   useEffect(() => {
-    loadAssets();
-  }, [authSeed, currentPage, searchTerm]);
+    // Load from cache immediately when filters change
+    const filters = {
+      page: currentPage,
+      searchTerm: searchTerm || '',
+    };
+    const cached = getCachedAssets(filters);
+    if (cached) {
+      prevAssetsRef.current = cached.assets;
+      prevTotalCountRef.current = cached.total_count;
+      setAssets(cached.assets);
+      setTotalCount(cached.total_count);
+    } else if (hasLoadedRef.current) {
+      // Clear assets if no cache for new filters (but not on initial load)
+      setAssets([]);
+      setTotalCount(0);
+    }
+
+    if (!hasLoadedRef.current) {
+      hasLoadedRef.current = true;
+    }
+
+    // Fetch from API in background
+    loadAssets(true);
+  }, [loadAssets, currentPage, searchTerm]);
 
   // Watch for refresh trigger from parent component
   useEffect(() => {
     if (refreshTrigger && refreshTrigger > 0) {
-      loadAssets();
+      loadAssets(false);
     }
-  }, [refreshTrigger]);
+  }, [refreshTrigger, loadAssets]);
 
   useEffect(() => {
     // Get the base URL for asset serving
@@ -88,46 +177,6 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
     }
   }, [showPreview]);
 
-  const loadAssets = async () => {
-    setLoading(true);
-    try {
-      const sessionKey = localStorage.getItem('adminSessionKey');
-      if (!sessionKey) {
-        setMessage({ type: 'error', text: 'Session key not found. Please login again.' });
-        return;
-      }
-
-      const apiUrl = await getApiUrl('/admin/assets/list');
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Token': X_TOKEN_VALUE,
-        },
-        body: JSON.stringify({
-          session_key: sessionKey,
-          auth_seed: authSeed,
-          page: currentPage,
-          limit: itemsPerPage,
-          search: searchTerm || undefined,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setAssets(data.assets || []);
-        setTotalCount(data.total_count || 0);
-      } else {
-        setMessage({ type: 'error', text: data.message || 'Failed to load assets' });
-      }
-    } catch (error) {
-      console.error('Failed to load assets:', error);
-      setMessage({ type: 'error', text: 'Failed to load assets' });
-    } finally {
-      setLoading(false);
-    }
-  };
 
 
 
@@ -166,8 +215,22 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
 
       if (data.success) {
         // Remove the deleted asset from the local state instead of refreshing
-        setAssets(prevAssets => prevAssets.filter(asset => asset.filename !== assetToDelete.filename));
+        const updatedAssets = assets.filter(asset => asset.filename !== assetToDelete.filename);
+        setAssets(updatedAssets);
         setTotalCount(prevCount => prevCount - 1);
+        
+        // Update cache
+        const filters = {
+          page: currentPage,
+          searchTerm: searchTerm || '',
+        };
+        setCachedAssets(filters, {
+          success: true,
+          assets: updatedAssets,
+          total_count: totalCount - 1,
+          page: currentPage,
+          limit: itemsPerPage,
+        });
       } else {
         setMessage({ type: 'error', text: data.message || 'Delete failed' });
       }
@@ -241,8 +304,24 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
       await Promise.all(deletePromises);
 
       // Remove deleted assets from local state
-      setAssets(prevAssets => prevAssets.filter(asset => !selectedAssets.has(asset.filename)));
-      setTotalCount(prevCount => prevCount - selectedAssets.size);
+      const updatedAssets = assets.filter(asset => !selectedAssets.has(asset.filename));
+      const deletedCount = selectedAssets.size;
+      setAssets(updatedAssets);
+      setTotalCount(prevCount => prevCount - deletedCount);
+      
+      // Update cache
+      const filters = {
+        page: currentPage,
+        searchTerm: searchTerm || '',
+      };
+      setCachedAssets(filters, {
+        success: true,
+        assets: updatedAssets,
+        total_count: totalCount - deletedCount,
+        page: currentPage,
+        limit: itemsPerPage,
+      });
+      
       clearSelection();
 
     } catch (error) {
@@ -331,7 +410,10 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
               type="text"
               placeholder="Search files..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1); // Reset to first page on search
+              }}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
@@ -406,12 +488,7 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
           </h3>
         </div>
 
-        {loading ? (
-          <div className="p-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="text-gray-600 mt-2">Loading assets...</p>
-          </div>
-        ) : assets.length === 0 ? (
+        {assets.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             <File className="h-12 w-12 mx-auto mb-4 text-gray-300" />
             <p>No assets found</p>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Eye, 
   Edit3, 
@@ -19,6 +19,7 @@ import {
   Image
 } from 'lucide-react';
 import { getApiUrl, X_TOKEN_VALUE } from '../config/api';
+import { getCachedMarkdownFiles, setCachedMarkdownFiles, getCachedMarkdownFile, setCachedMarkdownFile, removeCachedMarkdownFile, mergeMarkdownFiles } from '../utils/markdownCache';
 
 interface MarkdownEditorProps {
   authSeed: string;
@@ -48,7 +49,6 @@ const MarkdownEditor = React.forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
   const [files, setFiles] = useState<MarkdownFile[]>([]);
   const [currentFile, setCurrentFile] = useState<MarkdownFile | null>(null);
   const [content, setContent] = useState<string>('');
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
@@ -75,22 +75,14 @@ const MarkdownEditor = React.forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
     saving,
   }));
 
-  useEffect(() => {
-    loadMarkdownFiles();
-    // Get the base URL for raw markdown links
-    getApiUrl('/').then(url => {
-      setBaseUrl(url.replace(/\/$/, '')); // Remove trailing slash
-    });
-  }, []);
-
-
-  const loadMarkdownFiles = async () => {
+  const loadMarkdownFiles = useCallback(async (background = false) => {
     try {
-      setLoading(true);
       const sessionKey = localStorage.getItem('adminSessionKey');
       
       if (!sessionKey) {
-        setMessage({ type: 'error', text: 'No admin session found' });
+        if (!background) {
+          setMessage({ type: 'error', text: 'No admin session found' });
+        }
         return;
       }
 
@@ -109,22 +101,55 @@ const MarkdownEditor = React.forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          setFiles(data.files || []);
+          setFiles(prev => {
+            if (prev.length === 0) {
+              return data.files || [];
+            }
+            return mergeMarkdownFiles(prev, data.files || []);
+          });
+          setCachedMarkdownFiles(data.files || []);
         } else {
-          setMessage({ type: 'error', text: data.message || 'Failed to load markdown files' });
+          if (!background) {
+            setMessage({ type: 'error', text: data.message || 'Failed to load markdown files' });
+          }
         }
       } else {
-        setMessage({ type: 'error', text: 'Failed to load markdown files' });
+        if (!background) {
+          setMessage({ type: 'error', text: 'Failed to load markdown files' });
+        }
       }
     } catch (error) {
       console.error('Error loading markdown files:', error);
-      setMessage({ type: 'error', text: 'Error loading markdown files' });
-    } finally {
-      setLoading(false);
+      if (!background) {
+        setMessage({ type: 'error', text: 'Error loading markdown files' });
+      }
     }
-  };
+  }, [authSeed]);
+
+  useEffect(() => {
+    // Load from cache immediately
+    const cached = getCachedMarkdownFiles();
+    if (cached) {
+      setFiles(cached);
+    }
+
+    // Fetch from API in background
+    loadMarkdownFiles(true);
+
+    // Get the base URL for raw markdown links
+    getApiUrl('/').then(url => {
+      setBaseUrl(url.replace(/\/$/, '')); // Remove trailing slash
+    });
+  }, [loadMarkdownFiles]);
 
   const loadFile = async (filename: string) => {
+    // Load from cache immediately
+    const cached = getCachedMarkdownFile(filename);
+    if (cached) {
+      setCurrentFile(cached);
+      setContent(cached.content);
+    }
+
     try {
       const sessionKey = localStorage.getItem('adminSessionKey');
       
@@ -148,8 +173,14 @@ const MarkdownEditor = React.forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.file) {
-          setCurrentFile(data.file);
+          setCurrentFile(prev => {
+            if (prev && JSON.stringify(prev) === JSON.stringify(data.file)) {
+              return prev;
+            }
+            return data.file;
+          });
           setContent(data.file.content);
+          setCachedMarkdownFile(filename, data.file);
         } else {
           setMessage({ type: 'error', text: data.message || 'Failed to load file' });
         }
@@ -196,10 +227,19 @@ const MarkdownEditor = React.forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
           setLastSaved(new Date());
           // Update the current file with new data
           if (data.file) {
-            setCurrentFile(data.file);
+            const updatedFile = { ...data.file, content };
+            setCurrentFile(updatedFile);
+            setCachedMarkdownFile(currentFile.filename, updatedFile);
+            
+            // Update file in files list
+            setFiles(prev => {
+              const updated = prev.map(f => 
+                f.filename === currentFile.filename ? updatedFile : f
+              );
+              setCachedMarkdownFiles(updated);
+              return updated;
+            });
           }
-          // Refresh the file list
-          loadMarkdownFiles();
         } else {
           setMessage({ type: 'error', text: data.message || 'Failed to save file' });
         }
@@ -254,9 +294,15 @@ const MarkdownEditor = React.forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
           if (data.file) {
             setCurrentFile(data.file);
             setContent(data.file.content);
+            setCachedMarkdownFile(data.file.filename, data.file);
+            
+            // Add to files list
+            setFiles(prev => {
+              const updated = [...prev, data.file];
+              setCachedMarkdownFiles(updated);
+              return updated;
+            });
           }
-          // Refresh the file list
-          loadMarkdownFiles();
         } else {
           setMessage({ type: 'error', text: data.message || 'Failed to create file' });
         }
@@ -306,8 +352,13 @@ const MarkdownEditor = React.forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
             setCurrentFile(null);
             setContent('');
           }
-          // Refresh the file list
-          loadMarkdownFiles();
+          // Remove from files list and cache
+          setFiles(prev => {
+            const updated = prev.filter(f => f.filename !== filename);
+            setCachedMarkdownFiles(updated);
+            return updated;
+          });
+          removeCachedMarkdownFile(filename);
         } else {
           setMessage({ type: 'error', text: data.message || 'Failed to delete file' });
         }
@@ -461,14 +512,6 @@ const MarkdownEditor = React.forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
     file.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
     file.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="h-full bg-gray-50 flex flex-col overflow-hidden">

@@ -1,18 +1,14 @@
-import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import { 
   Tag, 
   Plus, 
-  Trash2, 
   X,
   AlertCircle,
   CheckCircle,
-  Search,
-  ChevronDown,
-  ChevronUp,
-  Percent,
-  Star
+  Search
 } from 'lucide-react';
 import { X_TOKEN_VALUE, getApiUrl } from '../config/api';
+import { getCachedPromoConfig, setCachedPromoConfig, mergePromoConfig } from '../utils/promoCache';
 
 // Types for promo management
 interface PromoItem {
@@ -48,34 +44,25 @@ export interface PromoManagementRef {
 
 const PromoManagement = forwardRef<PromoManagementRef, PromoManagementProps>(({ authSeed, onStatsChange }, ref) => {
   const [promoConfig, setPromoConfig] = useState<PromoConfig | null>(null);
-  const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
-  const [expandedPromo, setExpandedPromo] = useState<Set<string>>(new Set());
   const [newPromo, setNewPromo] = useState<Partial<PromoItem>>({
     code: '',
     value: { type: 'price_cut', amount: 100 }
   });
 
-  useEffect(() => {
-    loadPromoConfig();
-  }, [authSeed]);
+  const hasLoadedRef = useRef(false);
+  const prevPromoConfigRef = useRef<PromoConfig | null>(null);
 
-  // Notify parent when promoConfig changes
-  useEffect(() => {
-    if (onStatsChange && promoConfig) {
-      onStatsChange(promoConfig.metadata.total_promos || 0);
-    }
-  }, [promoConfig?.metadata.total_promos, onStatsChange]);
-
-  const loadPromoConfig = async () => {
+  const loadPromoConfig = useCallback(async (background = false) => {
     try {
-      setLoading(true);
       const sessionKey = localStorage.getItem('adminSessionKey');
       
       if (!sessionKey) {
-        setMessage({ type: 'error', text: 'No admin session found' });
+        if (!background) {
+          setMessage({ type: 'error', text: 'No admin session found' });
+        }
         return;
       }
 
@@ -97,20 +84,64 @@ const PromoManagement = forwardRef<PromoManagementRef, PromoManagementProps>(({ 
         if (data.success && data.config) {
           // Convert the backend format to frontend format
           const convertedConfig = convertBackendToFrontend(data.config);
-          setPromoConfig(convertedConfig);
+          setPromoConfig(prev => {
+            if (prev && JSON.stringify(prev) === JSON.stringify(convertedConfig)) {
+              return prev;
+            }
+            return mergePromoConfig(prev, convertedConfig);
+          });
         } else {
-          setMessage({ type: 'error', text: data.message || 'Failed to load promo configuration' });
+          if (!background) {
+            setMessage({ type: 'error', text: data.message || 'Failed to load promo configuration' });
+          }
         }
       } else {
-        setMessage({ type: 'error', text: 'Failed to load promo configuration' });
+        if (!background) {
+          setMessage({ type: 'error', text: 'Failed to load promo configuration' });
+        }
       }
     } catch (error) {
       console.error('Error loading promo config:', error);
-      setMessage({ type: 'error', text: 'Error loading promo configuration' });
-    } finally {
-      setLoading(false);
+      if (!background) {
+        setMessage({ type: 'error', text: 'Error loading promo configuration' });
+      }
     }
-  };
+  }, [authSeed]);
+
+  useEffect(() => {
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
+
+    // Load from cache immediately
+    const cached = getCachedPromoConfig();
+    if (cached) {
+      prevPromoConfigRef.current = cached;
+      setPromoConfig(cached);
+    }
+
+    // Fetch from API in background
+    loadPromoConfig(true);
+  }, [loadPromoConfig]);
+
+  // Update cache when promoConfig changes (but not if it's the same as previous)
+  useEffect(() => {
+    if (promoConfig && prevPromoConfigRef.current !== promoConfig) {
+      // Only update cache if config actually changed
+      if (!prevPromoConfigRef.current || 
+          JSON.stringify(prevPromoConfigRef.current) !== JSON.stringify(promoConfig)) {
+        setCachedPromoConfig(promoConfig);
+        prevPromoConfigRef.current = promoConfig;
+      }
+    }
+  }, [promoConfig]);
+
+  // Notify parent when promoConfig changes
+  useEffect(() => {
+    if (onStatsChange && promoConfig) {
+      onStatsChange(promoConfig.metadata.total_promos || 0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [promoConfig?.metadata.total_promos]);
 
   const convertBackendToFrontend = (backendConfig: any): PromoConfig => {
     const convertedPromos = backendConfig.promos.map((promo: any) => {
@@ -274,34 +305,92 @@ const PromoManagement = forwardRef<PromoManagementRef, PromoManagementProps>(({ 
     });
   };
 
-  const togglePromo = (code: string) => {
-    setExpandedPromo(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(code)) {
-        newSet.delete(code);
-      } else {
-        newSet.add(code);
-      }
-      return newSet;
-    });
+  const renderPromoRow = (promo: PromoItem) => {
+    return (
+      <div
+        key={promo.code}
+        className="flex gap-3 p-2 bg-white rounded border border-gray-200 hover:bg-gray-50"
+      >
+        {/* Code */}
+        <div className="flex-shrink-0 w-1/4 flex items-start">
+          <input
+            type="text"
+            value={promo.code}
+            onChange={(e) => updatePromo(promo.code, 'code', e.target.value)}
+            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            placeholder="Kode promo"
+          />
+        </div>
+        
+        {/* Separator */}
+        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+        
+        {/* Type */}
+        <div className="flex-shrink-0 w-1/4 flex items-start">
+          <select
+            value={promo.value.type}
+            onChange={(e) => {
+              const type = e.target.value as 'price_cut' | 'new_product';
+              const newValue = type === 'price_cut' 
+                ? { type: 'price_cut', amount: promo.value.type === 'price_cut' ? promo.value.amount : 100 }
+                : { type: 'new_product', isNew: true };
+              updatePromo(promo.code, 'value', newValue);
+            }}
+            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          >
+            <option value="price_cut">Price Cut</option>
+            <option value="new_product">New Product</option>
+          </select>
+        </div>
+        
+        {/* Separator */}
+        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+        
+        {/* Value */}
+        <div className="flex-1 min-w-0 flex items-start">
+          {promo.value.type === 'price_cut' ? (
+            <input
+              type="number"
+              value={promo.value.amount}
+              onChange={(e) => updatePromo(promo.code, 'value', { 
+                type: 'price_cut', 
+                amount: parseInt(e.target.value) || 0 
+              })}
+              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              min="1"
+              placeholder="Jumlah diskon"
+            />
+          ) : (
+            <div className="px-2 py-1 text-sm text-gray-600">
+              Produk Baru
+            </div>
+          )}
+        </div>
+        
+        {/* Separator */}
+        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+        
+        {/* Actions */}
+        <div className="flex-shrink-0 w-20 flex items-start">
+          <button
+            onClick={() => removePromo(promo.code)}
+            className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+            title="Hapus promo"
+          >
+            Hapus
+          </button>
+        </div>
+      </div>
+    );
   };
 
   const filteredPromos = promoConfig?.promos.filter(promo => {
-    const matchesSearch = promo.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         promo.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = promo.code.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = filterType === 'all' || 
                        (filterType === 'price_cut' && promo.value.type === 'price_cut') ||
                        (filterType === 'new_product' && promo.value.type === 'new_product');
     return matchesSearch && matchesType;
   }) || [];
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -417,96 +506,23 @@ const PromoManagement = forwardRef<PromoManagementRef, PromoManagementProps>(({ 
       </div>
 
       {/* Promo List */}
-      <div className="space-y-3">
-        {filteredPromos.map((promo) => (
-          <div key={promo.code} className="bg-white rounded-lg border border-gray-200">
-            <div className="p-4 flex items-center justify-between">
-              <button
-                onClick={() => togglePromo(promo.code)}
-                className="flex items-center space-x-3 hover:bg-gray-50 p-2 rounded-md flex-1"
-              >
-                <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
-                  {promo.value.type === 'price_cut' ? (
-                    <Percent className="h-6 w-6 text-green-500" />
-                  ) : (
-                    <Star className="h-6 w-6 text-yellow-500" />
-                  )}
-                </div>
-                <div className="text-left">
-                  <h3 className="text-sm font-semibold text-gray-900">{promo.code}</h3>
-                  <p className="text-xs text-gray-600">
-                    {promo.value.type === 'price_cut' 
-                      ? `Diskon Rp ${promo.value.amount}` 
-                      : 'Produk Baru'
-                    }
-                  </p>
-                </div>
-              </button>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => removePromo(promo.code)}
-                  className="text-red-500 hover:text-red-700 p-1"
-                  title="Hapus promo"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-                {expandedPromo.has(promo.code) ? (
-                  <ChevronUp className="h-4 w-4 text-gray-400" />
-                ) : (
-                  <ChevronDown className="h-4 w-4 text-gray-400" />
-                )}
-              </div>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="p-4">
+          <div className="mb-3 pb-2 border-b border-gray-200">
+            <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
+              <div className="flex-shrink-0 w-1/4">Kode Promo</div>
+              <div className="flex-shrink-0 text-gray-400">|</div>
+              <div className="flex-shrink-0 w-1/4">Tipe Promo</div>
+              <div className="flex-shrink-0 text-gray-400">|</div>
+              <div className="flex-1 min-w-0">Nilai</div>
+              <div className="flex-shrink-0 text-gray-400">|</div>
+              <div className="flex-shrink-0 w-20">Aksi</div>
             </div>
-            
-            {expandedPromo.has(promo.code) && (
-              <div className="px-4 pb-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-medium text-gray-700">Kode Promo:</label>
-                    <input
-                      type="text"
-                      value={promo.code}
-                      onChange={(e) => updatePromo(promo.code, 'code', e.target.value)}
-                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-700">Tipe Promo:</label>
-                    <select
-                      value={promo.value.type}
-                      onChange={(e) => {
-                        const type = e.target.value as 'price_cut' | 'new_product';
-                        const newValue = type === 'price_cut' 
-                          ? { type: 'price_cut', amount: 100 }
-                          : { type: 'new_product', isNew: true };
-                        updatePromo(promo.code, 'value', newValue);
-                      }}
-                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    >
-                      <option value="price_cut">Price Cut</option>
-                      <option value="new_product">New Product</option>
-                    </select>
-                  </div>
-                  {promo.value.type === 'price_cut' && (
-                    <div>
-                      <label className="text-xs font-medium text-gray-700">Jumlah Diskon (Rp):</label>
-                      <input
-                        type="number"
-                        value={promo.value.amount}
-                        onChange={(e) => updatePromo(promo.code, 'value', { 
-                          type: 'price_cut', 
-                          amount: parseInt(e.target.value) || 0 
-                        })}
-                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                        min="1"
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
-        ))}
+          <div className="space-y-2">
+            {filteredPromos.map((promo) => renderPromoRow(promo))}
+          </div>
+        </div>
       </div>
 
       {filteredPromos.length === 0 && (

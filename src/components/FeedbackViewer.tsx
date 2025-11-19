@@ -1,19 +1,17 @@
-import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { useState, useEffect, forwardRef, useImperativeHandle, useCallback, useRef } from 'react';
 import { 
   MessageSquare, 
   Search, 
   Trash2, 
-  RefreshCw, 
   User, 
   Calendar, 
   AlertCircle,
   CheckCircle,
   ChevronLeft,
-  ChevronRight,
-  Eye,
-  EyeOff
+  ChevronRight
 } from 'lucide-react';
 import { getApiUrl, X_TOKEN_VALUE } from '../config/api';
+import { getCachedFeedback, setCachedFeedback, mergeFeedback, removeCachedFeedbackItem } from '../utils/feedbackCache';
 
 interface FeedbackItem {
   id: number;
@@ -49,9 +47,8 @@ export interface FeedbackViewerRef {
   showTechnicalDetails: boolean;
 }
 
-const FeedbackViewer = forwardRef<FeedbackViewerRef, FeedbackViewerProps>(({ authSeed, onNavigate, onStatsChange }, ref) => {
+const FeedbackViewer = forwardRef<FeedbackViewerRef, FeedbackViewerProps>(({ authSeed, onStatsChange }, ref) => {
   const [feedback, setFeedback] = useState<FeedbackItem[]>([]);
-  const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<number | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -61,14 +58,17 @@ const FeedbackViewer = forwardRef<FeedbackViewerRef, FeedbackViewerProps>(({ aut
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
 
   const itemsPerPage = 10;
+  const prevFeedbackRef = useRef<FeedbackItem[]>([]);
+  const lastFiltersRef = useRef<{ page: number; searchTerm: string } | null>(null);
 
-  const loadFeedback = async (page: number = 1, search: string = '') => {
+  const loadFeedback = useCallback(async (page: number = 1, search: string = '', background = false) => {
     try {
-      setLoading(true);
       const sessionKey = localStorage.getItem('adminSessionKey');
       
       if (!sessionKey) {
-        setMessage({ type: 'error', text: 'No admin session found' });
+        if (!background) {
+          setMessage({ type: 'error', text: 'No admin session found' });
+        }
         return;
       }
 
@@ -92,37 +92,75 @@ const FeedbackViewer = forwardRef<FeedbackViewerRef, FeedbackViewerProps>(({ aut
       if (response.ok) {
         const data: FeedbackListResponse = await response.json();
         if (data.success) {
-          setFeedback(data.feedback);
+          setFeedback(prev => {
+            if (prev.length === 0) {
+              return data.feedback;
+            }
+            return mergeFeedback(prev, data.feedback);
+          });
           setTotalCount(data.total);
           setCurrentPage(page);
-          
-          // Notify parent of stats change
-          if (onStatsChange) {
-            onStatsChange(data.total);
-          }
+          setCachedFeedback({ page, searchTerm: search }, data.feedback, data.total);
         } else {
-          setMessage({ type: 'error', text: data.message || 'Failed to load feedback' });
+          if (!background) {
+            setMessage({ type: 'error', text: data.message || 'Failed to load feedback' });
+          }
         }
       } else {
-        setMessage({ type: 'error', text: 'Failed to load feedback' });
+        if (!background) {
+          setMessage({ type: 'error', text: 'Failed to load feedback' });
+        }
       }
     } catch (error) {
       console.error('Error loading feedback:', error);
-      setMessage({ type: 'error', text: 'Error loading feedback' });
-    } finally {
-      setLoading(false);
+      if (!background) {
+        setMessage({ type: 'error', text: 'Error loading feedback' });
+      }
     }
-  };
+  }, [authSeed, itemsPerPage]);
+
+  useEffect(() => {
+    const filters = { page: currentPage, searchTerm };
+    const filtersChanged = 
+      !lastFiltersRef.current ||
+      lastFiltersRef.current.page !== currentPage || 
+      lastFiltersRef.current.searchTerm !== searchTerm;
+
+    if (filtersChanged) {
+      lastFiltersRef.current = filters;
+      const cached = getCachedFeedback(filters);
+      if (cached) {
+        prevFeedbackRef.current = cached.feedback;
+        setFeedback(cached.feedback);
+        setTotalCount(cached.total);
+      } else {
+        setFeedback([]);
+        setTotalCount(0);
+      }
+      loadFeedback(currentPage, searchTerm, true);
+    }
+  }, [loadFeedback, currentPage, searchTerm]);
+
+  useEffect(() => {
+    if (feedback.length > 0 && prevFeedbackRef.current !== feedback) {
+      if (JSON.stringify(prevFeedbackRef.current) !== JSON.stringify(feedback)) {
+        const filters = { page: currentPage, searchTerm };
+        setCachedFeedback(filters, feedback, totalCount);
+        prevFeedbackRef.current = feedback;
+      }
+    }
+  }, [feedback, currentPage, searchTerm, totalCount]);
 
   // Notify parent when totalCount changes
   useEffect(() => {
     if (onStatsChange) {
       onStatsChange(totalCount);
     }
-  }, [totalCount, onStatsChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [totalCount]);
 
   const refreshData = () => {
-    loadFeedback(currentPage, searchTerm);
+    loadFeedback(currentPage, searchTerm, false);
   };
 
   const toggleTechnicalDetailsHandler = () => {
@@ -161,8 +199,13 @@ const FeedbackViewer = forwardRef<FeedbackViewerRef, FeedbackViewerProps>(({ aut
         const data: DeleteFeedbackResponse = await response.json();
         if (data.success) {
           setMessage({ type: 'success', text: 'Feedback deleted successfully' });
-          // Reload current page
-          loadFeedback(currentPage, searchTerm);
+          // Remove from state and cache
+          setFeedback(prev => {
+            const updated = prev.filter(f => f.id !== id);
+            removeCachedFeedbackItem(id, { page: currentPage, searchTerm });
+            return updated;
+          });
+          setTotalCount(prev => prev - 1);
         } else {
           setMessage({ type: 'error', text: data.message || 'Failed to delete feedback' });
         }
@@ -206,18 +249,13 @@ const FeedbackViewer = forwardRef<FeedbackViewerRef, FeedbackViewerProps>(({ aut
 
   const handleSearch = () => {
     setCurrentPage(1);
-    loadFeedback(1, searchTerm);
   };
 
   const handlePageChange = (newPage: number) => {
-    loadFeedback(newPage, searchTerm);
+    setCurrentPage(newPage);
   };
 
   const totalPages = Math.ceil(totalCount / itemsPerPage);
-
-  useEffect(() => {
-    loadFeedback();
-  }, []);
 
   // Clear message after 5 seconds
   useEffect(() => {
@@ -277,11 +315,7 @@ const FeedbackViewer = forwardRef<FeedbackViewerRef, FeedbackViewerProps>(({ aut
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
-        {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-          </div>
-        ) : feedback.length === 0 ? (
+        {feedback.length === 0 ? (
           <div className="text-center py-12">
             <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">Tidak ada feedback</h3>

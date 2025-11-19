@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Save, 
   RefreshCw, 
@@ -15,12 +15,10 @@ import {
   Code,
   Heading1,
   Heading2,
-  Heading3,
-  CheckSquare,
-  Minus,
-  ChevronRight
+  Heading3
 } from 'lucide-react';
 import { getApiUrl, X_TOKEN_VALUE } from '../config/api';
+import { getCachedPrivacyPolicy, setCachedPrivacyPolicy } from '../utils/privacyPolicyCache';
 
 interface PrivacyPolicyEditorProps {
   authSeed: string;
@@ -28,28 +26,23 @@ interface PrivacyPolicyEditorProps {
 }
 
 
-const PrivacyPolicyEditor: React.FC<PrivacyPolicyEditorProps> = ({ authSeed, onNavigate }) => {
+const PrivacyPolicyEditor: React.FC<PrivacyPolicyEditorProps> = ({ authSeed }) => {
   const [content, setContent] = useState<string>('');
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
-  const [showToolbar, setShowToolbar] = useState(true);
+  const [showToolbar] = useState(true);
   const [fontSize, setFontSize] = useState(14);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
-  useEffect(() => {
-    loadPrivacyPolicy();
-  }, []);
-
-
-  const loadPrivacyPolicy = async () => {
+  const loadPrivacyPolicy = useCallback(async (background = false) => {
     try {
-      setLoading(true);
       const sessionKey = localStorage.getItem('adminSessionKey');
       
       if (!sessionKey) {
-        setMessage({ type: 'error', text: 'No admin session found' });
+        if (!background) {
+          setMessage({ type: 'error', text: 'No admin session found' });
+        }
         return;
       }
 
@@ -68,20 +61,41 @@ const PrivacyPolicyEditor: React.FC<PrivacyPolicyEditorProps> = ({ authSeed, onN
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.content) {
-          setContent(data.content);
+          setContent(prev => {
+            if (prev === data.content) {
+              return prev;
+            }
+            return data.content;
+          });
+          setCachedPrivacyPolicy(data.content);
         } else {
-          setMessage({ type: 'error', text: data.message || 'Failed to load privacy policy' });
+          if (!background) {
+            setMessage({ type: 'error', text: data.message || 'Failed to load privacy policy' });
+          }
         }
       } else {
-        setMessage({ type: 'error', text: 'Failed to load privacy policy' });
+        if (!background) {
+          setMessage({ type: 'error', text: 'Failed to load privacy policy' });
+        }
       }
     } catch (error) {
       console.error('Error loading privacy policy:', error);
-      setMessage({ type: 'error', text: 'Error loading privacy policy' });
-    } finally {
-      setLoading(false);
+      if (!background) {
+        setMessage({ type: 'error', text: 'Error loading privacy policy' });
+      }
     }
-  };
+  }, [authSeed]);
+
+  useEffect(() => {
+    // Load from cache immediately
+    const cached = getCachedPrivacyPolicy();
+    if (cached) {
+      setContent(cached);
+    }
+
+    // Fetch from API in background
+    loadPrivacyPolicy(true);
+  }, [loadPrivacyPolicy]);
 
   const savePrivacyPolicy = async () => {
     setSaving(true);
@@ -110,6 +124,7 @@ const PrivacyPolicyEditor: React.FC<PrivacyPolicyEditorProps> = ({ authSeed, onN
         if (data.success) {
           setMessage({ type: 'success', text: 'Privacy policy saved successfully!' });
           setLastSaved(new Date());
+          setCachedPrivacyPolicy(content);
         } else {
           setMessage({ type: 'error', text: data.message || 'Failed to save privacy policy' });
         }
@@ -228,14 +243,6 @@ const PrivacyPolicyEditor: React.FC<PrivacyPolicyEditorProps> = ({ authSeed, onN
     return { __html: html };
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-      </div>
-    );
-  }
-
   return (
     <div className="h-full bg-gray-50 flex flex-col overflow-hidden">
       {/* Header */}
@@ -276,7 +283,7 @@ const PrivacyPolicyEditor: React.FC<PrivacyPolicyEditorProps> = ({ authSeed, onN
               </button>
               
               <button
-                onClick={loadPrivacyPolicy}
+                onClick={() => loadPrivacyPolicy(false)}
                 className="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 flex items-center space-x-2"
               >
                 <RefreshCw className="h-4 w-4" />

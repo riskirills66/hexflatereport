@@ -1,6 +1,7 @@
-import { useState, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
+import { useState, useEffect, forwardRef, useImperativeHandle, useRef, useCallback } from 'react';
 import { Shield, AlertTriangle, CheckCircle, Settings, ToggleLeft, ToggleRight, Clock } from 'lucide-react';
 import { getApiUrl, X_TOKEN_VALUE } from '../config/api';
+import { getCachedSecurityManagement, setCachedSecurityManagement } from '../utils/securityManagementCache';
 
 interface SecurityManagementProps {
   authSeed: string;
@@ -98,25 +99,27 @@ interface CutoffConfig {
 const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementProps>(
   ({ authSeed, onNavigate }, ref) => {
   const [config, setConfig] = useState<SecurityConfig | null>(null);
-  const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [currentAdminInfo, setCurrentAdminInfo] = useState<CurrentAdminInfo | null>(null);
   const [dynamicPatternOrder, setDynamicPatternOrder] = useState<string[]>([]);
   const [demoNumber, setDemoNumber] = useState<string | null>(null);
-  const [loadingDemoNumber, setLoadingDemoNumber] = useState(false);
   
   // Priority settings state
   const [appRules, setAppRules] = useState<AppRules | null>(null);
-  const [loadingAppRules, setLoadingAppRules] = useState(false);
   const [dynamicRules, setDynamicRules] = useState<AppRules | null>(null);
   
   // Cutoff configuration state
   const [cutoffConfig, setCutoffConfig] = useState<CutoffConfig | null>(null);
-  const [loadingCutoff, setLoadingCutoff] = useState(false);
   
   // Tab state
   const [activeTab, setActiveTab] = useState<string>('priority_settings');
   const hasInitializedTab = useRef(false);
+  const hasLoadedRef = useRef(false);
+  const prevConfigRef = useRef<SecurityConfig | null>(null);
+  const prevAppRulesRef = useRef<AppRules | null>(null);
+  const prevDynamicRulesRef = useRef<AppRules | null>(null);
+  const prevCutoffConfigRef = useRef<CutoffConfig | null>(null);
+  const prevDemoNumberRef = useRef<string | null>(null);
 
   useEffect(() => {
     fetchCurrentAdminInfo();
@@ -124,39 +127,113 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
 
   useEffect(() => {
     if (currentAdminInfo?.is_super_admin) {
-      loadSecurityConfig();
-      loadAppRules();
-      loadDynamicRules();
-      loadCutoffConfig();
-      loadDemoNumber();
+      if (!hasLoadedRef.current) {
+        hasLoadedRef.current = true;
+        
+        // Load from cache immediately
+        const cached = getCachedSecurityManagement();
+        if (cached) {
+          if (cached.config) {
+            prevConfigRef.current = cached.config;
+            setConfig(cached.config);
+          }
+          if (cached.appRules) {
+            prevAppRulesRef.current = cached.appRules;
+            setAppRules(cached.appRules);
+          }
+          if (cached.dynamicRules) {
+            prevDynamicRulesRef.current = cached.dynamicRules;
+            setDynamicRules(cached.dynamicRules);
+          }
+          if (cached.cutoffConfig) {
+            prevCutoffConfigRef.current = cached.cutoffConfig;
+            setCutoffConfig(cached.cutoffConfig);
+          }
+          if (cached.demoNumber !== null) {
+            prevDemoNumberRef.current = cached.demoNumber;
+            setDemoNumber(cached.demoNumber);
+          }
+        }
+        
+        // Fetch from API in background
+        loadSecurityConfig(true);
+        loadAppRules(true);
+        loadDynamicRules(true);
+        loadCutoffConfig(true);
+        loadDemoNumber(true);
+      }
     } else if (currentAdminInfo && !currentAdminInfo.is_super_admin) {
-      setLoading(false);
       setMessage({ type: 'error', text: 'Access denied. Only super admins can access security configuration.' });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentAdminInfo]);
+
+  // Update cache when state changes
+  useEffect(() => {
+    if (config && prevConfigRef.current !== config) {
+      if (!prevConfigRef.current || JSON.stringify(prevConfigRef.current) !== JSON.stringify(config)) {
+        setCachedSecurityManagement({ config });
+        prevConfigRef.current = config;
+      }
+    }
+  }, [config]);
+
+  useEffect(() => {
+    if (appRules && prevAppRulesRef.current !== appRules) {
+      if (!prevAppRulesRef.current || JSON.stringify(prevAppRulesRef.current) !== JSON.stringify(appRules)) {
+        setCachedSecurityManagement({ appRules });
+        prevAppRulesRef.current = appRules;
+      }
+    }
+  }, [appRules]);
+
+  useEffect(() => {
+    if (dynamicRules && prevDynamicRulesRef.current !== dynamicRules) {
+      if (!prevDynamicRulesRef.current || JSON.stringify(prevDynamicRulesRef.current) !== JSON.stringify(dynamicRules)) {
+        setCachedSecurityManagement({ dynamicRules });
+        prevDynamicRulesRef.current = dynamicRules;
+      }
+    }
+  }, [dynamicRules]);
+
+  useEffect(() => {
+    if (cutoffConfig && prevCutoffConfigRef.current !== cutoffConfig) {
+      if (!prevCutoffConfigRef.current || JSON.stringify(prevCutoffConfigRef.current) !== JSON.stringify(cutoffConfig)) {
+        setCachedSecurityManagement({ cutoffConfig });
+        prevCutoffConfigRef.current = cutoffConfig;
+      }
+    }
+  }, [cutoffConfig]);
+
+  useEffect(() => {
+    if (demoNumber !== null && prevDemoNumberRef.current !== demoNumber) {
+      setCachedSecurityManagement({ demoNumber });
+      prevDemoNumberRef.current = demoNumber;
+    }
+  }, [demoNumber]);
 
   // Initialize dynamic pattern order when config loads
   useEffect(() => {
     if (config?.outbox_patterns?.dynamic_patterns && dynamicPatternOrder.length === 0) {
-      setDynamicPatternOrder(Object.keys(config.outbox_patterns.dynamic_patterns));
+      setDynamicPatternOrder(Object.keys(config?.outbox_patterns?.dynamic_patterns || {}));
     }
   }, [config?.outbox_patterns?.dynamic_patterns, dynamicPatternOrder.length]);
 
-  // Set initial active tab to priority_settings when loading completes
+  // Set initial active tab to priority_settings when data loads
   useEffect(() => {
-    if (!loading && !hasInitializedTab.current) {
+    if (!hasInitializedTab.current) {
       hasInitializedTab.current = true;
       // Always default to priority_settings if appRules is available
       if (appRules) {
         setActiveTab('priority_settings');
       } else if (config) {
         // Only switch to other tabs if priority_settings is not available
-        if (config.balance_transfer || config.trx || config.commission_exchange) setActiveTab('transfer_transaksi');
-        else if (config.client_config) setActiveTab('client_config');
-        else if (config.outbox_patterns || config.combotrx) setActiveTab('outbox_patterns');
+        if (config?.balance_transfer || config?.trx || config?.commission_exchange) setActiveTab('transfer_transaksi');
+        else if (config?.client_config) setActiveTab('client_config');
+        else if (config?.outbox_patterns || config?.combotrx) setActiveTab('outbox_patterns');
       }
     }
-  }, [loading, config, appRules]);
+  }, [config, appRules]);
 
 
   const fetchCurrentAdminInfo = async () => {
@@ -190,12 +267,13 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
     }
   };
 
-  const loadSecurityConfig = async () => {
+  const loadSecurityConfig = useCallback(async (background = false) => {
     try {
-      setLoading(true);
       const sessionKey = localStorage.getItem('adminSessionKey');
       if (!sessionKey) {
-        setMessage({ type: 'error', text: 'Session key not found. Please login again.' });
+        if (!background) {
+          setMessage({ type: 'error', text: 'Session key not found. Please login again.' });
+        }
         return;
       }
 
@@ -213,26 +291,35 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
       const data: SecurityConfigResponse = await response.json();
 
       if (data.success && data.config) {
-        setConfig(data.config);
-        setMessage(null);
+        setConfig(prev => {
+          if (prev && JSON.stringify(prev) === JSON.stringify(data.config)) {
+            return prev;
+          }
+          return data.config!;
+        });
+        if (!background) {
+          setMessage(null);
+        }
       } else {
-        setMessage({ type: 'error', text: data.message || 'Failed to load security configuration' });
+        if (!background) {
+          setMessage({ type: 'error', text: data.message || 'Failed to load security configuration' });
+        }
       }
     } catch (error) {
       console.error('Failed to load security config:', error);
-      setMessage({ type: 'error', text: 'Failed to load security configuration' });
-    } finally {
-      setLoading(false);
+      if (!background) {
+        setMessage({ type: 'error', text: 'Failed to load security configuration' });
+      }
     }
-  };
+  }, [authSeed]);
 
-  const loadDemoNumber = async () => {
+  const loadDemoNumber = useCallback(async (background = false) => {
     try {
-      setLoadingDemoNumber(true);
       const sessionKey = localStorage.getItem('adminSessionKey');
       if (!sessionKey) {
-        setMessage({ type: 'error', text: 'Session key not found. Please login again.' });
-        setLoadingDemoNumber(false);
+        if (!background) {
+          setMessage({ type: 'error', text: 'Session key not found. Please login again.' });
+        }
         return;
       }
       const apiUrl = await getApiUrl('/admin/demo-config');
@@ -248,16 +335,19 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
       });
       const data = await response.json();
       if (response.ok && data.success) {
-        setDemoNumber(data.demo_number || null);
+        setDemoNumber(prev => {
+          if (prev === (data.demo_number || null)) {
+            return prev;
+          }
+          return data.demo_number || null;
+        });
       } else {
         setDemoNumber(null);
       }
     } catch (_e) {
       setDemoNumber(null);
-    } finally {
-      setLoadingDemoNumber(false);
     }
-  };
+  }, [authSeed]);
 
 
   const updateConfig = (section: keyof SecurityConfig, field: string, value: any) => {
@@ -386,7 +476,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
     if (!config?.outbox_patterns) return;
 
     // Generate a unique key based on current dynamic patterns count
-    const currentCount = Object.keys(config.outbox_patterns.dynamic_patterns).length;
+    const currentCount = Object.keys(config?.outbox_patterns?.dynamic_patterns || {}).length;
     const key = `dynamic_pattern_${currentCount + 1}`;
     const title = `Custom Pattern ${currentCount + 1}`;
     const pattern = "(?i)custom";
@@ -427,13 +517,16 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
   };
 
   // Priority Settings Functions
-  const loadAppRules = async () => {
+  const loadAppRules = useCallback(async (background = false) => {
     try {
-      setLoadingAppRules(true);
       const sessionKey = localStorage.getItem('adminSessionKey');
       if (!sessionKey) {
-        setMessage({ type: 'error', text: 'Session tidak valid' });
-        setAppRules(getDefaultRules());
+        if (!background) {
+          setMessage({ type: 'error', text: 'Session tidak valid' });
+        }
+        if (!appRules) {
+          setAppRules(getDefaultRules());
+        }
         return;
       }
 
@@ -452,30 +545,49 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.rules) {
-          setAppRules(data.rules);
+          setAppRules(prev => {
+            if (prev && JSON.stringify(prev) === JSON.stringify(data.rules)) {
+              return prev;
+            }
+            return data.rules;
+          });
         } else {
-          setMessage({ type: 'error', text: data.message || 'Gagal memuat pengaturan' });
-          setAppRules(getDefaultRules());
+          if (!background) {
+            setMessage({ type: 'error', text: data.message || 'Gagal memuat pengaturan' });
+          }
+          if (!appRules) {
+            setAppRules(getDefaultRules());
+          }
         }
       } else {
-        setMessage({ type: 'error', text: 'Gagal memuat pengaturan dari server' });
-        setAppRules(getDefaultRules());
+        if (!background) {
+          setMessage({ type: 'error', text: 'Gagal memuat pengaturan dari server' });
+        }
+        if (!appRules) {
+          setAppRules(getDefaultRules());
+        }
       }
     } catch (error) {
       console.error('Failed to load app rules:', error);
-      setMessage({ type: 'error', text: 'Terjadi kesalahan saat memuat pengaturan' });
-      setAppRules(getDefaultRules());
-    } finally {
-      setLoadingAppRules(false);
+      if (!background) {
+        setMessage({ type: 'error', text: 'Terjadi kesalahan saat memuat pengaturan' });
+      }
+      if (!appRules) {
+        setAppRules(getDefaultRules());
+      }
     }
-  };
+  }, [authSeed, appRules]);
 
-  const loadDynamicRules = async () => {
+  const loadDynamicRules = useCallback(async (background = false) => {
     try {
       const sessionKey = localStorage.getItem('adminSessionKey');
       if (!sessionKey) {
-        setMessage({ type: 'error', text: 'Session tidak valid' });
-        setDynamicRules({});
+        if (!background) {
+          setMessage({ type: 'error', text: 'Session tidak valid' });
+        }
+        if (!dynamicRules) {
+          setDynamicRules(getDefaultDynamicRules());
+        }
         return;
       }
 
@@ -504,25 +616,40 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
             }
           });
           
-          setDynamicRules(dynamicRulesFiltered);
+          setDynamicRules(prev => {
+            if (prev && JSON.stringify(prev) === JSON.stringify(dynamicRulesFiltered)) {
+              return prev;
+            }
+            return dynamicRulesFiltered;
+          });
         } else {
-          setDynamicRules(getDefaultDynamicRules());
+          if (!dynamicRules) {
+            setDynamicRules(getDefaultDynamicRules());
+          }
         }
       } else {
-        setDynamicRules(getDefaultDynamicRules());
+        if (!dynamicRules) {
+          setDynamicRules(getDefaultDynamicRules());
+        }
       }
     } catch (error) {
       console.error('Failed to load dynamic rules:', error);
-      setDynamicRules(getDefaultDynamicRules());
+      if (!dynamicRules) {
+        setDynamicRules(getDefaultDynamicRules());
+      }
     }
-  };
+  }, [authSeed, dynamicRules]);
 
-  const loadCutoffConfig = async () => {
+  const loadCutoffConfig = useCallback(async (background = false) => {
     try {
-      setLoadingCutoff(true);
       const sessionKey = localStorage.getItem('adminSessionKey');
       if (!sessionKey) {
-        setMessage({ type: 'error', text: 'Session tidak valid' });
+        if (!background) {
+          setMessage({ type: 'error', text: 'Session tidak valid' });
+        }
+        if (!cutoffConfig) {
+          setCutoffConfig(getDefaultCutoffConfig());
+        }
         return;
       }
 
@@ -540,19 +667,28 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
       const data = await response.json();
 
       if (data.success && data.config) {
-        setCutoffConfig(data.config);
+        setCutoffConfig(prev => {
+          if (prev && JSON.stringify(prev) === JSON.stringify(data.config)) {
+            return prev;
+          }
+          return data.config;
+        });
       } else {
         console.error('Failed to load cutoff config:', data.message);
-        setCutoffConfig(getDefaultCutoffConfig());
+        if (!cutoffConfig) {
+          setCutoffConfig(getDefaultCutoffConfig());
+        }
       }
     } catch (error) {
       console.error('Failed to load cutoff config:', error);
-      setMessage({ type: 'error', text: 'Terjadi kesalahan saat memuat konfigurasi cutoff' });
-      setCutoffConfig(getDefaultCutoffConfig());
-    } finally {
-      setLoadingCutoff(false);
+      if (!background) {
+        setMessage({ type: 'error', text: 'Terjadi kesalahan saat memuat konfigurasi cutoff' });
+      }
+      if (!cutoffConfig) {
+        setCutoffConfig(getDefaultCutoffConfig());
+      }
     }
-  };
+  }, [authSeed, cutoffConfig]);
 
   const getDefaultCutoffConfig = (): CutoffConfig => ({
     cutoff_start: '23:45',
@@ -1406,14 +1542,6 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
     saveAllConfigurations
   }));
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <span className="ml-2 text-gray-600">Loading security configuration...</span>
-      </div>
-    );
-  }
 
 
   // Check if user is not a super admin
@@ -1434,24 +1562,6 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
             className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
           >
             Return to Dashboard
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!config) {
-    return (
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <div className="text-center">
-          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Configuration Not Found</h3>
-          <p className="text-gray-600 mb-4">Unable to load security configuration.</p>
-          <button
-            onClick={loadSecurityConfig}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-          >
-            Retry
           </button>
         </div>
       </div>
@@ -1547,13 +1657,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                   </div>
                 </div>
 
-                {loadingAppRules ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
-                    <span className="ml-3 text-gray-600">Memuat pengaturan prioritas...</span>
-                  </div>
-                ) : (
-                  <div className="border border-gray-200 rounded-lg p-4">
+                <div className="border border-gray-200 rounded-lg p-4">
                     <div className="mb-3 pb-2 border-b border-gray-200">
                       <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
                         <div className="flex-shrink-0 w-1/5">Key</div>
@@ -1575,7 +1679,6 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                       })}
                     </div>
                   </div>
-                )}
               </div>
 
               {/* Dynamic Rules Section */}
@@ -1624,13 +1727,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                     </div>
                   </div>
 
-                  {loadingCutoff ? (
-                    <div className="flex items-center justify-center py-8">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-600"></div>
-                      <span className="ml-3 text-gray-600">Memuat konfigurasi cutoff...</span>
-                    </div>
-                  ) : (
-                    <div className="border border-gray-200 rounded-lg p-4">
+                  <div className="border border-gray-200 rounded-lg p-4">
                       <div className="mb-3 pb-2 border-b border-gray-200">
                         <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
                           <div className="flex-shrink-0 w-1/5">Key</div>
@@ -1655,7 +1752,6 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                         )}
                       </div>
                     </div>
-                  )}
                 </div>
               )}
 
@@ -1671,7 +1767,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                   </div>
                 </div>
 
-                {!config.history && (
+                {!config?.history && (
                   <div className="mb-4">
                     <button
                       onClick={() => {
@@ -1689,7 +1785,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                   </div>
                 )}
 
-                {config.history && (
+                {config?.history && (
                   <div className="border border-gray-200 rounded-lg p-4">
                     <div className="mb-3 pb-2 border-b border-gray-200">
                       <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
@@ -1705,7 +1801,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                     <div className="space-y-2">
                       {renderPrioritySettingsRow(
                         'minimum_harga_to_display_in_history',
-                        config.history.minimum_harga_to_display_in_history,
+                        config?.history?.minimum_harga_to_display_in_history,
                         (_key, value) => updateConfig('history', 'minimum_harga_to_display_in_history', value)
                       )}
                     </div>
@@ -1725,7 +1821,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                   </div>
                 </div>
 
-                {!config.poin && (
+                {!config?.poin && (
                   <div className="mb-4">
                     <button
                       onClick={() => {
@@ -1744,7 +1840,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                   </div>
                 )}
 
-                {config.poin && (
+                {config?.poin && (
                   <div className="border border-gray-200 rounded-lg p-4">
                     <div className="mb-3 pb-2 border-b border-gray-200">
                       <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
@@ -1760,12 +1856,12 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                     <div className="space-y-2">
                       {renderPrioritySettingsRow(
                         'exchange_rate',
-                        config.poin.exchange_rate,
+                        config?.poin?.exchange_rate,
                         (_key, value) => updateConfig('poin', 'exchange_rate', value)
                       )}
                       {renderPrioritySettingsRow(
                         'minimum_exchange',
-                        config.poin.minimum_exchange ?? '',
+                        config?.poin?.minimum_exchange ?? '',
                         (_key, value) => updateConfig('poin', 'minimum_exchange', value === '' ? undefined : (typeof value === 'number' ? value : parseFloat(String(value)) || undefined))
                       )}
                     </div>
@@ -1785,13 +1881,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                   </div>
                 </div>
 
-                {loadingDemoNumber ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-600"></div>
-                    <span className="ml-3 text-gray-600">Memuat nomor demo...</span>
-                  </div>
-                ) : (
-                  <div className="border border-gray-200 rounded-lg p-4">
+                <div className="border border-gray-200 rounded-lg p-4">
                     <div className="mb-3 pb-2 border-b border-gray-200">
                       <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
                         <div className="flex-shrink-0 w-1/5">Key</div>
@@ -1810,7 +1900,6 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                       />
                     </div>
                   </div>
-                )}
               </div>
             </div>
           )}
@@ -1827,7 +1916,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                   <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Format Transfer Saldo</h3>
                 </div>
 
-                {!config.balance_transfer && (
+                {!config?.balance_transfer && (
                   <div className="mb-4">
                     <button
                       onClick={() => {
@@ -1846,7 +1935,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                   </div>
                 )}
 
-                {config.balance_transfer && (
+                {config?.balance_transfer && (
                   <div className="border border-gray-200 rounded-lg p-4">
                     <div className="mb-3 pb-2 border-b border-gray-200">
                       <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
@@ -1861,13 +1950,13 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                       {renderTransferTransaksiRow(
                         'balance_transfer',
                         'add_format',
-                        config.balance_transfer.add_format,
+                        config?.balance_transfer?.add_format,
                         (field, value) => updateConfig('balance_transfer', field, value)
                       )}
                       {renderTransferTransaksiRow(
                         'balance_transfer',
                         'trans_format',
-                        config.balance_transfer.trans_format,
+                        config?.balance_transfer?.trans_format,
                         (field, value) => updateConfig('balance_transfer', field, value)
                       )}
                     </div>
@@ -1884,7 +1973,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                   <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Format Transaksi</h3>
                 </div>
 
-                {!config.trx && (
+                {!config?.trx && (
                   <div className="mb-4">
                     <button
                       onClick={() => {
@@ -1905,7 +1994,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                   </div>
                 )}
 
-                {config.trx && (
+                {config?.trx && (
                   <div className="border border-gray-200 rounded-lg p-4">
                     <div className="mb-3 pb-2 border-b border-gray-200">
                       <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
@@ -1920,25 +2009,25 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                       {renderTransferTransaksiRow(
                         'trx',
                         'pesan_format_no_val',
-                        config.trx.pesan_format_no_val,
+                        config?.trx?.pesan_format_no_val,
                         (field, value) => updateConfig('trx', field, value)
                       )}
                       {renderTransferTransaksiRow(
                         'trx',
                         'pesan_format_with_val_nonzero',
-                        config.trx.pesan_format_with_val_nonzero,
+                        config?.trx?.pesan_format_with_val_nonzero,
                         (field, value) => updateConfig('trx', field, value)
                       )}
                       {renderTransferTransaksiRow(
                         'trx',
                         'pesan_format_with_val_zero',
-                        config.trx.pesan_format_with_val_zero,
+                        config?.trx?.pesan_format_with_val_zero,
                         (field, value) => updateConfig('trx', field, value)
                       )}
                       {renderTransferTransaksiRow(
                         'trx',
                         'combo_code_format',
-                        config.trx.combo_code_format || '',
+                        config?.trx?.combo_code_format || '',
                         (field, value) => updateConfig('trx', field, value)
                       )}
                     </div>
@@ -1955,7 +2044,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                   <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Format Tukar Komisi</h3>
                 </div>
 
-                {!config.commission_exchange && (
+                {!config?.commission_exchange && (
                   <div className="mb-4">
                     <button
                       onClick={() => {
@@ -1973,7 +2062,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                   </div>
                 )}
 
-                {config.commission_exchange && (
+                {config?.commission_exchange && (
                   <div className="border border-gray-200 rounded-lg p-4">
                     <div className="mb-3 pb-2 border-b border-gray-200">
                       <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
@@ -1988,7 +2077,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                       {renderTransferTransaksiRow(
                         'commission_exchange',
                         'tukar_format',
-                        config.commission_exchange.tukar_format,
+                        config?.commission_exchange?.tukar_format,
                         (field, value) => updateConfig('commission_exchange', field, value)
                       )}
                     </div>
@@ -2009,7 +2098,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                   <h3 className="text-lg font-semibold text-gray-900">Blokir Referral</h3>
                 </div>
 
-                {!config.client_config && (
+                {!config?.client_config && (
                   <div className="mb-4">
                     <button
                       onClick={() => {
@@ -2027,19 +2116,19 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                   </div>
                 )}
 
-                {config.client_config && (
+                {config?.client_config && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Daftar Referral yang Diblokir
                     </label>
                     <div className="space-y-2">
-                      {config.client_config.blocked_referrals.map((referral, index) => (
+                      {config?.client_config?.blocked_referrals?.map((referral, index) => (
                         <div key={index} className="flex items-center space-x-2">
                           <input
                             type="text"
                             value={referral}
                             onChange={(e) => {
-                              const newBlocked = [...config.client_config!.blocked_referrals];
+                              const newBlocked = [...(config?.client_config?.blocked_referrals || [])];
                               newBlocked[index] = e.target.value;
                               updateConfig('client_config', 'blocked_referrals', newBlocked);
                             }}
@@ -2048,7 +2137,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                           />
                           <button
                             onClick={() => {
-                              const newBlocked = config.client_config!.blocked_referrals.filter((_, i) => i !== index);
+                              const newBlocked = (config?.client_config?.blocked_referrals || []).filter((_, i) => i !== index);
                               updateConfig('client_config', 'blocked_referrals', newBlocked);
                             }}
                             className="px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-sm"
@@ -2059,7 +2148,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                       ))}
                       <button
                         onClick={() => {
-                          const newBlocked = [...(config.client_config?.blocked_referrals || []), ''];
+                          const newBlocked = [...(config?.client_config?.blocked_referrals || []), ''];
                           updateConfig('client_config', 'blocked_referrals', newBlocked);
                         }}
                         className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors text-sm"
@@ -2089,7 +2178,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                   <h3 className="text-lg font-semibold text-gray-900">Konfigurasi Outbox Paket Combo</h3>
                 </div>
 
-                {!config.combotrx && (
+                {!config?.combotrx && (
                   <div className="mb-4">
                     <button
                       onClick={() => {
@@ -2108,7 +2197,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                   </div>
                 )}
 
-                {config.combotrx && (
+                {config?.combotrx && (
                   <div className="border border-gray-200 rounded-lg p-4">
                     <div className="mb-3 pb-2 border-b border-gray-200">
                       <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
@@ -2123,13 +2212,13 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                       {renderTransferTransaksiRow(
                         'combotrx',
                         'outbox_like_pattern',
-                        config.combotrx.outbox_like_pattern,
+                        config?.combotrx?.outbox_like_pattern,
                         (field, value) => updateConfig('combotrx', field, value)
                       )}
                       {renderTransferTransaksiRow(
                         'combotrx',
                         'sdh_pernah_filter',
-                        config.combotrx.sdh_pernah_filter,
+                        config?.combotrx?.sdh_pernah_filter,
                         (field, value) => updateConfig('combotrx', field, value)
                       )}
                     </div>
@@ -2138,7 +2227,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
               </div>
 
               {/* Outbox Patterns */}
-              {!config.outbox_patterns && (
+              {!config?.outbox_patterns && (
                 <div>
                   <div className="mb-4">
                     <button
@@ -2151,7 +2240,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                 </div>
               )}
 
-              {config.outbox_patterns && (
+              {config?.outbox_patterns && (
                 <div>
                   <div className="flex items-center space-x-3 mb-4">
                     <div className="h-6 w-6 bg-indigo-100 rounded-full flex items-center justify-center">
@@ -2176,28 +2265,28 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                         <div className="space-y-2">
                           {renderOutboxPatternRow(
                             'transaksi_sukses',
-                            config.outbox_patterns.static_patterns.transaksi_sukses.title,
-                            config.outbox_patterns.static_patterns.transaksi_sukses.pattern,
+                            config?.outbox_patterns?.static_patterns?.transaksi_sukses?.title,
+                            config?.outbox_patterns?.static_patterns?.transaksi_sukses?.pattern,
                             (field, value) => updateConfig('outbox_patterns', 'static_transaksi_sukses', {
-                              ...config.outbox_patterns!.static_patterns.transaksi_sukses,
+                              ...(config?.outbox_patterns?.static_patterns?.transaksi_sukses || {}),
                               [field]: value
                             })
                           )}
                           {renderOutboxPatternRow(
                             'transaksi_proses',
-                            config.outbox_patterns.static_patterns.transaksi_proses.title,
-                            config.outbox_patterns.static_patterns.transaksi_proses.pattern,
+                            config?.outbox_patterns?.static_patterns?.transaksi_proses?.title,
+                            config?.outbox_patterns?.static_patterns?.transaksi_proses?.pattern,
                             (field, value) => updateConfig('outbox_patterns', 'static_transaksi_proses', {
-                              ...config.outbox_patterns!.static_patterns.transaksi_proses,
+                              ...(config?.outbox_patterns?.static_patterns?.transaksi_proses || {}),
                               [field]: value
                             })
                           )}
                           {renderOutboxPatternRow(
                             'transaksi_gagal',
-                            config.outbox_patterns.static_patterns.transaksi_gagal.title,
-                            config.outbox_patterns.static_patterns.transaksi_gagal.pattern,
+                            config?.outbox_patterns?.static_patterns?.transaksi_gagal?.title,
+                            config?.outbox_patterns?.static_patterns?.transaksi_gagal?.pattern,
                             (field, value) => updateConfig('outbox_patterns', 'static_transaksi_gagal', {
-                              ...config.outbox_patterns!.static_patterns.transaksi_gagal,
+                              ...(config?.outbox_patterns?.static_patterns?.transaksi_gagal || {}),
                               [field]: value
                             })
                           )}
@@ -2231,7 +2320,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                         </div>
                         <div className="space-y-2">
                           {dynamicPatternOrder.map((key, index) => {
-                            const pattern = config.outbox_patterns?.dynamic_patterns[key];
+                            const pattern = config?.outbox_patterns?.dynamic_patterns?.[key];
                             if (!pattern) return null;
                             return (
                               <DynamicPatternRow
@@ -2288,8 +2377,7 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
       </div>
     </div>
   );
-  }
-);
+});
 
 SecurityManagement.displayName = 'SecurityManagement';
 
