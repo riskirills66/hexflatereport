@@ -9,7 +9,9 @@ import {
   X, 
   GripVertical,
   AlertTriangle,
-  Copy
+  Copy,
+  Upload,
+  Image as ImageIcon
 } from 'lucide-react';
 import { MenuItem } from '../types';
 import IconRenderer from './IconRenderer';
@@ -17,6 +19,8 @@ import { getRoutesByCategory } from '../data/routeConfig';
 import { RouteArgsManager } from '../utils/routeArgsManager';
 import RouteArgsConfig from './RouteArgsConfig';
 import RouteArgsEditor from './RouteArgsEditor';
+import AssetsManager from './AssetsManager';
+import { getApiUrl, X_TOKEN_VALUE } from '../config/api';
 
 interface TreeNode {
   id: string;
@@ -39,9 +43,10 @@ interface MenuEditorProps {
   items: MenuItem[];
   onSave: (items: MenuItem[]) => void;
   onClose: () => void;
+  authSeed?: string;
 }
 
-export default function MenuEditor({ items, onSave, onClose }: MenuEditorProps) {
+export default function MenuEditor({ items, onSave, onClose, authSeed = '' }: MenuEditorProps) {
   const [menuTree, setMenuTree] = useState<TreeNode[]>([]);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set()); // Start with all collapsed
   const [editingNode, setEditingNode] = useState<string | null>(null);
@@ -78,6 +83,11 @@ export default function MenuEditor({ items, onSave, onClose }: MenuEditorProps) 
   const [editModalHasChanges, setEditModalHasChanges] = useState(false);
   const [showEditModalUnsavedDialog, setShowEditModalUnsavedDialog] = useState(false);
   const originalEditDataRef = useRef<MenuItem | null>(null);
+
+  // Asset picker/uploader state
+  const [showAssetPicker, setShowAssetPicker] = useState(false);
+  const [assetsRefreshTrigger, setAssetsRefreshTrigger] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Generate random colors for menu items
   useEffect(() => {
@@ -902,6 +912,142 @@ export default function MenuEditor({ items, onSave, onClose }: MenuEditorProps) 
     setShowEditModalUnsavedDialog(false);
   };
 
+  const getPublicUrl = async (filename: string) => {
+    // Strip any leading /assets/ or / from the filename
+    const cleanFilename = filename.replace(/^\/assets\//, '').replace(/^\//, '');
+    const apiUrl = await getApiUrl('');
+    return `${apiUrl}/assets/${cleanFilename}`;
+  };
+
+  const handleUploadFile = async (file: File) => {
+    try {
+      const sessionKey = localStorage.getItem('adminSessionKey');
+      if (!sessionKey) {
+        console.error('Session key not found');
+        return null;
+      }
+
+      const formData = new FormData();
+      formData.append('session_key', sessionKey);
+      formData.append('auth_seed', authSeed || localStorage.getItem('adminAuthSeed') || '');
+      formData.append('file', file);
+
+      const apiUrl = await getApiUrl('/admin/assets/upload');
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'X-Token': X_TOKEN_VALUE,
+        },
+        body: formData,
+      });
+
+      const data = await response.json();
+      console.log('Upload response:', data);
+      
+      if (data.success) {
+        // Try different response formats
+        let filename = null;
+        let publicUrl = null;
+        
+        // Check for filename in various places
+        if (data.filename) {
+          filename = data.filename;
+        } else if (data.asset?.filename) {
+          filename = data.asset.filename;
+        } else if (data.file_url) {
+          // Extract filename from file_url
+          const urlParts = data.file_url.split('/');
+          filename = urlParts[urlParts.length - 1];
+        }
+        
+        // Check for public_url or file_url (might be full URL or relative)
+        if (data.public_url) {
+          publicUrl = data.public_url;
+        } else if (data.asset?.public_url) {
+          publicUrl = data.asset.public_url;
+        } else if (data.file_url) {
+          publicUrl = data.file_url;
+        }
+        
+        // If we have a URL but it's relative (starts with /), make it absolute
+        if (publicUrl && publicUrl.startsWith('/')) {
+          const baseUrl = await getApiUrl('');
+          publicUrl = `${baseUrl}${publicUrl}`;
+        }
+        
+        // If we still don't have a URL but have a filename, construct it
+        if (!publicUrl && filename) {
+          publicUrl = await getPublicUrl(filename);
+        }
+        
+        console.log('Extracted filename:', filename);
+        console.log('Constructed publicUrl:', publicUrl);
+        
+        if (publicUrl) {
+          setAssetsRefreshTrigger(prev => prev + 1);
+          return publicUrl;
+        } else {
+          console.error('Upload succeeded but no URL found in response:', data);
+          return null;
+        }
+      } else {
+        console.error('Upload failed:', data.message || 'Unknown error');
+        return null;
+      }
+    } catch (error) {
+      console.error('Upload failed:', error);
+      return null;
+    }
+  };
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!editingNodeData || !editingNodeId) {
+      console.error('No node data or node ID available for update');
+      console.log('editingNodeData:', editingNodeData);
+      console.log('editingNodeId:', editingNodeId);
+      return;
+    }
+
+    console.log('Starting file upload...');
+    const url = await handleUploadFile(file);
+    console.log('Upload completed, URL:', url);
+    
+    if (url) {
+      console.log('Setting iconUrl to:', url);
+      console.log('Current editingNodeData before update:', editingNodeData);
+      
+      // Update the node - this should update both editingNodeData and the tree
+      updateNode({ iconUrl: url });
+      
+      // Also directly update editingNodeData state to ensure it's reflected immediately
+      setEditingNodeData(prev => {
+        if (!prev) return prev;
+        const updated = { ...prev, iconUrl: url };
+        console.log('Directly updating editingNodeData to:', updated);
+        return updated;
+      });
+      
+      console.log('updateNode and setEditingNodeData called');
+    } else {
+      console.error('Failed to get URL from upload');
+    }
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleAssetSelect = async (filename: string) => {
+    const url = await getPublicUrl(filename);
+    if (url && editingNodeData) {
+      updateNode({ iconUrl: url });
+    }
+    setShowAssetPicker(false);
+  };
+
   // Check if there are unsaved changes
   const checkForUnsavedChanges = () => {
     const currentFlat = treeToFlat(menuTree);
@@ -1222,13 +1368,38 @@ export default function MenuEditor({ items, onSave, onClose }: MenuEditorProps) 
 
                 <div className="form-group">
                   <label className="form-label text-sm">Ikon</label>
-                  <input
-                    type="text"
-                    className="form-input text-sm py-2 w-full"
-                    value={editingNodeData.iconUrl || ''}
-                    onChange={(e) => updateNode({ iconUrl: e.target.value })}
-                    placeholder="📱 or URL"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      className="form-input text-sm py-2 flex-1"
+                      value={editingNodeData.iconUrl || ''}
+                      onChange={(e) => updateNode({ iconUrl: e.target.value })}
+                      placeholder="📱 or URL"
+                    />
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center gap-1"
+                      title="Upload icon"
+                    >
+                      <Upload size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowAssetPicker(true)}
+                      className="px-3 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors flex items-center gap-1"
+                      title="Select from assets"
+                    >
+                      <ImageIcon size={14} />
+                    </button>
+                  </div>
                 </div>
                 
                 <div className="form-group">
@@ -1764,6 +1935,34 @@ export default function MenuEditor({ items, onSave, onClose }: MenuEditorProps) 
                 >
                   Buang Perubahan
                 </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Asset Picker Modal */}
+      {showAssetPicker && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg w-[90vw] max-w-6xl h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-800">Pilih atau Upload Asset</h3>
+              <button
+                onClick={() => setShowAssetPicker(false)}
+                className="p-1 text-gray-600 hover:text-gray-800 rounded"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <AssetsManager 
+                authSeed={authSeed || localStorage.getItem('adminAuthSeed') || ''}
+                refreshTrigger={assetsRefreshTrigger}
+              />
+              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800 mb-2">
+                  <strong>Petunjuk:</strong> Klik tombol "Copy URL" pada asset yang ingin digunakan, lalu paste URL tersebut ke field Ikon, atau klik langsung pada asset untuk memilih.
+                </p>
+              </div>
             </div>
           </div>
         </div>
