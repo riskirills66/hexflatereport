@@ -182,8 +182,8 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
 
 
 
-  const handleDelete = (assetId: string, filename: string, originalName: string) => {
-    setAssetToDelete({ id: assetId, filename, originalName });
+  const handleDelete = (assetId: string, originalName: string) => {
+    setAssetToDelete({ id: assetId, filename: '', originalName });
     setShowDeleteModal(true);
   };
 
@@ -215,7 +215,7 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
 
       if (data.success) {
         // Remove the deleted asset from the local state instead of refreshing
-        const updatedAssets = assets.filter(asset => asset.filename !== assetToDelete.filename);
+        const updatedAssets = assets.filter(asset => asset.id !== assetToDelete.id);
         setAssets(updatedAssets);
         setTotalCount(prevCount => prevCount - 1);
         
@@ -262,7 +262,7 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
   };
 
   const selectAllAssets = () => {
-    setSelectedAssets(new Set(assets.map(asset => asset.filename)));
+    setSelectedAssets(new Set(assets.map(asset => asset.id)));
   };
 
   const clearSelection = () => {
@@ -304,7 +304,7 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
       await Promise.all(deletePromises);
 
       // Remove deleted assets from local state
-      const updatedAssets = assets.filter(asset => !selectedAssets.has(asset.filename));
+      const updatedAssets = assets.filter(asset => !selectedAssets.has(asset.id));
       const deletedCount = selectedAssets.size;
       setAssets(updatedAssets);
       setTotalCount(prevCount => prevCount - deletedCount);
@@ -503,14 +503,14 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
                 {/* Selection Checkbox */}
                 <div className="absolute top-2 left-2 z-10">
                   <button
-                    onClick={() => toggleAssetSelection(asset.filename)}
+                    onClick={() => toggleAssetSelection(asset.id)}
                     className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                      selectedAssets.has(asset.filename)
+                      selectedAssets.has(asset.id)
                         ? 'bg-blue-600 border-blue-600 text-white'
                         : 'bg-white border-gray-300 hover:border-blue-400'
                     }`}
                   >
-                    {selectedAssets.has(asset.filename) && <Check className="h-3 w-3" />}
+                    {selectedAssets.has(asset.id) && <Check className="h-3 w-3" />}
                   </button>
                 </div>
 
@@ -576,7 +576,7 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
                       </button>
                       
                       <button
-                        onClick={() => handleDelete(asset.filename, asset.filename, asset.original_name)}
+                        onClick={() => handleDelete(asset.id, asset.original_name)}
                         className="p-2 bg-white bg-opacity-90 text-red-600 rounded-full hover:bg-opacity-100 transition-colors"
                         title="Delete"
                       >
@@ -613,14 +613,14 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
                   {/* Selection Checkbox */}
                   <div className="flex-shrink-0">
                     <button
-                      onClick={() => toggleAssetSelection(asset.filename)}
+                      onClick={() => toggleAssetSelection(asset.id)}
                       className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                        selectedAssets.has(asset.filename)
+                        selectedAssets.has(asset.id)
                           ? 'bg-blue-600 border-blue-600 text-white'
                           : 'bg-white border-gray-300 hover:border-blue-400'
                       }`}
                     >
-                      {selectedAssets.has(asset.filename) && <Check className="h-3 w-3" />}
+                      {selectedAssets.has(asset.id) && <Check className="h-3 w-3" />}
                     </button>
                   </div>
                   
@@ -686,7 +686,7 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
                     </button>
                     
                     <button
-                      onClick={() => handleDelete(asset.filename, asset.filename, asset.original_name)}
+                      onClick={() => handleDelete(asset.id, asset.original_name)}
                       className="p-2 text-red-400 hover:text-red-600 transition-colors"
                       title="Delete"
                     >
