@@ -12,7 +12,10 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { X_TOKEN_VALUE, getApiUrl } from "../config/api";
-import { getCachedSystemSettings, setCachedSystemSettings } from "../utils/systemSettingsCache";
+import {
+  getCachedSystemSettings,
+  setCachedSystemSettings,
+} from "../utils/systemSettingsCache";
 
 // Dynamic type for any app rules
 type AppRules = Record<string, any>;
@@ -112,10 +115,18 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
       Record<string, string>
     >({});
     const [infoConfigOrder, setInfoConfigOrder] = useState<string[]>([]);
-    const [tiketRegexConfigOrder, setTiketRegexConfigOrder] = useState<string[]>([]);
-    const [checkProductsConfigOrder, setCheckProductsConfigOrder] = useState<string[]>([]);
-    const [combotrxConfigOrder, setCombotrxConfigOrder] = useState<string[]>([]);
-    const [cektagihanConfigOrder, setCektagihanConfigOrder] = useState<string[]>([]);
+    const [tiketRegexConfigOrder, setTiketRegexConfigOrder] = useState<
+      string[]
+    >([]);
+    const [checkProductsConfigOrder, setCheckProductsConfigOrder] = useState<
+      string[]
+    >([]);
+    const [combotrxConfigOrder, setCombotrxConfigOrder] = useState<string[]>(
+      [],
+    );
+    const [cektagihanConfigOrder, setCektagihanConfigOrder] = useState<
+      string[]
+    >([]);
     const [appRulesOrder, setAppRulesOrder] = useState<string[]>([]);
 
     // Normalize receipt maps config to ensure dash is always boolean
@@ -124,9 +135,10 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         ...config,
         configs: config.configs.map((cfg: any) => ({
           ...cfg,
-          dash: typeof cfg.dash === 'string' 
-            ? cfg.dash.toLowerCase() === 'true' 
-            : (cfg.dash ?? false),
+          dash:
+            typeof cfg.dash === "string"
+              ? cfg.dash.toLowerCase() === "true"
+              : (cfg.dash ?? false),
         })),
       };
     };
@@ -160,7 +172,9 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
           setCektagihanConfigOrder(Object.keys(cached.cektagihanConfig));
         }
         if (cached.receiptMapsConfig) {
-          setReceiptMapsConfig(normalizeReceiptMapsConfig(cached.receiptMapsConfig));
+          setReceiptMapsConfig(
+            normalizeReceiptMapsConfig(cached.receiptMapsConfig),
+          );
         }
         if (cached.bantuanConfig) {
           setBantuanConfig(cached.bantuanConfig);
@@ -181,7 +195,7 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
     // Set initial active tab to first available config
     useEffect(() => {
       // Only set if current tab's config doesn't exist
-      const currentTabHasConfig = 
+      const currentTabHasConfig =
         (activeTab === "info_config" && infoConfig) ||
         (activeTab === "tiket_regex" && tiketRegexConfig) ||
         (activeTab === "check_products" && checkProductsConfig) ||
@@ -202,7 +216,17 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         else if (bantuanConfig) setActiveTab("bantuan_config");
         else if (appRules) setActiveTab("textEditing");
       }
-    }, [infoConfig, tiketRegexConfig, checkProductsConfig, combotrxConfig, cektagihanConfig, receiptMapsConfig, bantuanConfig, appRules, activeTab]);
+    }, [
+      infoConfig,
+      tiketRegexConfig,
+      checkProductsConfig,
+      combotrxConfig,
+      cektagihanConfig,
+      receiptMapsConfig,
+      bantuanConfig,
+      appRules,
+      activeTab,
+    ]);
 
     // Synchronize local cektagihan keys with cektagihan config
     useEffect(() => {
@@ -243,7 +267,7 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.rules) {
-            setAppRules(prev => {
+            setAppRules((prev) => {
               if (prev && JSON.stringify(prev) === JSON.stringify(data.rules)) {
                 return prev;
               }
@@ -321,8 +345,11 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.config) {
-            setInfoConfig(prev => {
-              if (prev && JSON.stringify(prev) === JSON.stringify(data.config)) {
+            setInfoConfig((prev) => {
+              if (
+                prev &&
+                JSON.stringify(prev) === JSON.stringify(data.config)
+              ) {
                 return prev;
               }
               return data.config;
@@ -397,8 +424,11 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.config) {
-            setTiketRegexConfig(prev => {
-              if (prev && JSON.stringify(prev) === JSON.stringify(data.config)) {
+            setTiketRegexConfig((prev) => {
+              if (
+                prev &&
+                JSON.stringify(prev) === JSON.stringify(data.config)
+              ) {
                 return prev;
               }
               return data.config;
@@ -473,8 +503,11 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.config) {
-            setCheckProductsConfig(prev => {
-              if (prev && JSON.stringify(prev) === JSON.stringify(data.config)) {
+            setCheckProductsConfig((prev) => {
+              if (
+                prev &&
+                JSON.stringify(prev) === JSON.stringify(data.config)
+              ) {
                 return prev;
               }
               return data.config;
@@ -646,8 +679,11 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.config) {
-            setCombotrxConfig(prev => {
-              if (prev && JSON.stringify(prev) === JSON.stringify(data.config)) {
+            setCombotrxConfig((prev) => {
+              if (
+                prev &&
+                JSON.stringify(prev) === JSON.stringify(data.config)
+              ) {
                 return prev;
               }
               return data.config;
@@ -785,7 +821,7 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
           pattern: "# (?P<kode>\\d+)\\|(?P<nama>[^|]+)\\|(?P<harga_final>\\d+)",
         },
       }));
-      
+
       // Add to order array at the end
       setCombotrxConfigOrder((prevOrder) => [...prevOrder, newHeader]);
     };
@@ -797,10 +833,10 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         delete newConfig[header];
         return newConfig;
       });
-      
+
       // Remove from order array
-      setCombotrxConfigOrder((prevOrder) => 
-        prevOrder.filter(h => h !== header)
+      setCombotrxConfigOrder((prevOrder) =>
+        prevOrder.filter((h) => h !== header),
       );
     };
 
@@ -815,7 +851,7 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         newConfig[newHeader] = headerData;
         return newConfig;
       });
-      
+
       // Update the order array to maintain position
       setCombotrxConfigOrder((prevOrder) => {
         const newOrder = [...prevOrder];
@@ -828,7 +864,7 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         }
         return newOrder;
       });
-      
+
       // Clear local state for the old header
       setLocalCombotrxHeaders((prev) => {
         const newLocal = { ...prev };
@@ -867,8 +903,11 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.config) {
-            setCektagihanConfig(prev => {
-              if (prev && JSON.stringify(prev) === JSON.stringify(data.config)) {
+            setCektagihanConfig((prev) => {
+              if (
+                prev &&
+                JSON.stringify(prev) === JSON.stringify(data.config)
+              ) {
                 return prev;
               }
               return data.config;
@@ -976,7 +1015,7 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         ...prev,
         [newKey]: "(?P<tagihan>[\\d.,]+)",
       }));
-      
+
       // Add to order array at the end
       setCektagihanConfigOrder((prevOrder) => [...prevOrder, newKey]);
     };
@@ -988,10 +1027,10 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         delete newConfig[key];
         return newConfig;
       });
-      
+
       // Remove from order array
-      setCektagihanConfigOrder((prevOrder) => 
-        prevOrder.filter(k => k !== key)
+      setCektagihanConfigOrder((prevOrder) =>
+        prevOrder.filter((k) => k !== key),
       );
     };
 
@@ -1006,7 +1045,7 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         newConfig[newKey] = value;
         return newConfig;
       });
-      
+
       // Update the order array to maintain position
       setCektagihanConfigOrder((prevOrder) => {
         const newOrder = [...prevOrder];
@@ -1047,7 +1086,10 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
       }
     };
 
-    const handleCombotrxHeaderNameChange = (oldHeader: string, newHeader: string) => {
+    const handleCombotrxHeaderNameChange = (
+      oldHeader: string,
+      newHeader: string,
+    ) => {
       setLocalCombotrxHeaders((prev) => ({
         ...prev,
         [oldHeader]: newHeader,
@@ -1106,8 +1148,11 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
           if (data.success && data.config) {
             // Normalize dash field to boolean for backward compatibility
             const normalizedConfig = normalizeReceiptMapsConfig(data.config);
-            setReceiptMapsConfig(prev => {
-              if (prev && JSON.stringify(prev) === JSON.stringify(normalizedConfig)) {
+            setReceiptMapsConfig((prev) => {
+              if (
+                prev &&
+                JSON.stringify(prev) === JSON.stringify(normalizedConfig)
+              ) {
                 return prev;
               }
               return normalizedConfig;
@@ -1349,8 +1394,11 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.config) {
-            setBantuanConfig(prev => {
-              if (prev && JSON.stringify(prev) === JSON.stringify(data.config)) {
+            setBantuanConfig((prev) => {
+              if (
+                prev &&
+                JSON.stringify(prev) === JSON.stringify(data.config)
+              ) {
                 return prev;
               }
               return data.config;
@@ -1495,6 +1543,177 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         newCards[index] = { ...newCards[index], [field]: value };
         return { ...prev, topicCards: newCards };
       });
+    };
+
+    const getBantuanFieldLabel = (key: string): string => {
+      const labels: Record<string, string> = {
+        mainCard: "Judul Kartu Utama",
+        mainCardContent: "Konten Kartu Utama",
+        topicTitle: "Judul Topik",
+      };
+      return labels[key] || key;
+    };
+
+    const getBantuanFieldDescription = (key: string): string => {
+      const descriptions: Record<string, string> = {
+        mainCard: "Judul utama yang ditampilkan di layar bantuan",
+        mainCardContent:
+          "Deskripsi atau konten utama yang ditampilkan di layar bantuan",
+        topicTitle: "Judul untuk bagian daftar topik bantuan",
+      };
+      return descriptions[key] || "";
+    };
+
+    const renderBantuanRow = (
+      key: string,
+      value: any,
+      onUpdate: (key: string, value: any) => void,
+    ) => {
+      const label = getBantuanFieldLabel(key);
+      const description = getBantuanFieldDescription(key);
+      const isLongText = String(value).length > 50;
+
+      return (
+        <div
+          key={key}
+          className="flex gap-3 p-2 bg-white rounded border border-gray-200 hover:bg-gray-50"
+        >
+          {/* Name */}
+          <div className="flex-shrink-0 w-1/4 flex items-start">
+            <span
+              className="text-sm font-medium text-gray-700 truncate block"
+              title={label}
+            >
+              {label}
+            </span>
+          </div>
+
+          {/* Separator */}
+          <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">
+            |
+          </div>
+
+          {/* Description */}
+          <div className="flex-1 min-w-0 flex items-start">
+            <span
+              className="text-xs text-gray-600 block break-words whitespace-normal"
+              title={description}
+            >
+              {description}
+            </span>
+          </div>
+
+          {/* Separator */}
+          <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">
+            |
+          </div>
+
+          {/* Value */}
+          <div className="flex-shrink-0 w-1/4 flex items-start">
+            {isLongText ? (
+              <textarea
+                value={value || ""}
+                onChange={(e) => onUpdate(key, e.target.value)}
+                rows={2}
+                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            ) : (
+              <input
+                type="text"
+                value={value || ""}
+                onChange={(e) => onUpdate(key, e.target.value)}
+                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    const renderTopicCardRow = (
+      cardIndex: number,
+      field: keyof TopicCard,
+      value: any,
+      onUpdate: (field: keyof TopicCard, value: any) => void,
+    ) => {
+      const fieldLabels: Record<keyof TopicCard, string> = {
+        icon: "Icon URL",
+        title: "Judul",
+        desc: "Deskripsi",
+        url: "URL",
+        route: "Route",
+        routeArgs: "Route Args",
+      };
+
+      const fieldDescriptions: Record<keyof TopicCard, string> = {
+        icon: "URL gambar icon untuk kartu topik",
+        title: "Judul yang ditampilkan pada kartu topik",
+        desc: "Deskripsi atau penjelasan tentang topik",
+        url: "URL langsung ke browser yang akan dibuka saat kartu diklik",
+        route: "Route aplikasi yang akan dibuka (misalnya /webview)",
+        routeArgs: "Argumen untuk route (berisi URL)",
+      };
+
+      const label = fieldLabels[field] || field;
+      const description = fieldDescriptions[field] || "";
+      const isLongText = field === "desc" || String(value).length > 50;
+      const key = `topicCards[${cardIndex}].${field}`;
+
+      return (
+        <div
+          key={key}
+          className="flex gap-3 p-2 bg-white rounded border border-gray-200 hover:bg-gray-50"
+        >
+          {/* Name */}
+          <div className="flex-shrink-0 w-1/4 flex items-start">
+            <span
+              className="text-sm font-medium text-gray-700 truncate block"
+              title={label}
+            >
+              {label}
+            </span>
+          </div>
+
+          {/* Separator */}
+          <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">
+            |
+          </div>
+
+          {/* Description */}
+          <div className="flex-1 min-w-0 flex items-start">
+            <span
+              className="text-xs text-gray-600 block break-words whitespace-normal"
+              title={description}
+            >
+              {description}
+            </span>
+          </div>
+
+          {/* Separator */}
+          <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">
+            |
+          </div>
+
+          {/* Value */}
+          <div className="flex-shrink-0 w-1/4 flex items-start">
+            {isLongText ? (
+              <textarea
+                value={value || ""}
+                onChange={(e) => onUpdate(field, e.target.value)}
+                rows={2}
+                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            ) : (
+              <input
+                type="text"
+                value={value || ""}
+                onChange={(e) => onUpdate(field, e.target.value)}
+                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            )}
+          </div>
+        </div>
+      );
     };
 
     const setTopicCardLinkType = (index: number, type: "url" | "route") => {
@@ -1825,11 +2044,10 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
       if (!checkProductsConfig) return;
       const newKey = `NEW_KEY_${Date.now()}`;
       setCheckProductsConfig({ ...checkProductsConfig, [newKey]: [""] });
-      
+
       // Add to order array at the end
       setCheckProductsConfigOrder((prevOrder) => [...prevOrder, newKey]);
     };
-
 
     const getFieldLabel = (key: string): string => {
       // Info config labels
@@ -1870,7 +2088,6 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         .trim();
     };
 
-
     const EXCLUDED_KEYS = [
       "verificationFeature",
       "exchangePoinToSaldo",
@@ -1900,21 +2117,21 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
 
     const shouldShowField = (key: string): boolean => {
       if (EXCLUDED_KEYS.includes(key)) return false;
-      
+
       if (!searchTerm) return true;
-      
+
       // If filter is active, check if this key was in the matched set
       // This prevents fields from disappearing when their values are edited
       return matchedKeys.has(key);
     };
-
 
     const renderField = (
       key: string,
       value: any,
       updateFunction: (key: string, value: any) => void = updateRule,
     ) => {
-      const displayValue = value === null || value === undefined ? "" : String(value);
+      const displayValue =
+        value === null || value === undefined ? "" : String(value);
 
       return (
         <div
@@ -1923,14 +2140,17 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         >
           {/* Key */}
           <div className="flex-shrink-0 w-1/3">
-            <span className="text-sm font-mono text-gray-700 truncate block" title={key}>
+            <span
+              className="text-sm font-mono text-gray-700 truncate block"
+              title={key}
+            >
               {key}
             </span>
           </div>
-          
+
           {/* Separator */}
           <div className="flex-shrink-0 text-gray-400">|</div>
-          
+
           {/* Value */}
           <div className="flex-1 min-w-0">
             <input
@@ -2027,7 +2247,7 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
           delete newConfig[key];
           newConfig[newKey] = products;
           setCheckProductsConfig(newConfig);
-          
+
           // Update the order array to maintain position
           setCheckProductsConfigOrder((prevOrder) => {
             const newOrder = [...prevOrder];
@@ -2082,10 +2302,10 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                     const newConfig = { ...checkProductsConfig };
                     delete newConfig[key];
                     setCheckProductsConfig(newConfig);
-                    
+
                     // Remove from order array
-                    setCheckProductsConfigOrder((prevOrder) => 
-                      prevOrder.filter(k => k !== key)
+                    setCheckProductsConfigOrder((prevOrder) =>
+                      prevOrder.filter((k) => k !== key),
                     );
                   }}
                   className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200"
@@ -2106,31 +2326,96 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
               + Add Product
             </button>
           </div>
-          <div className="space-y-2">
-            {products.map((product, index) => (
-              <div key={index} className="flex items-center space-x-2">
-                <input
-                  type="text"
-                  value={product}
-                  onChange={(e) => {
-                    const newProducts = [...products];
-                    newProducts[index] = e.target.value;
-                    updateFunction(key, newProducts);
-                  }}
-                  className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Masukkan kode produk"
-                />
-                <button
-                  onClick={() => {
-                    const newProducts = products.filter((_, i) => i !== index);
-                    updateFunction(key, newProducts);
-                  }}
-                  className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200"
+          <div className="mt-2">
+            <div className="flex flex-wrap gap-2 p-2 min-h-[42px] border border-gray-300 rounded-md focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent bg-white">
+              {products.map((product, index) => (
+                <div
+                  key={index}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-md border border-blue-200 text-sm"
                 >
-                  Remove
-                </button>
-              </div>
-            ))}
+                  <span>{product}</span>
+                  <button
+                    onClick={() => {
+                      const newProducts = products.filter(
+                        (_, i) => i !== index,
+                      );
+                      updateFunction(key, newProducts);
+                    }}
+                    className="ml-0.5 hover:bg-blue-100 rounded-full p-0.5 transition-colors"
+                    type="button"
+                    aria-label={`Remove ${product}`}
+                  >
+                    <svg
+                      className="w-3.5 h-3.5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+              <input
+                type="text"
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value.includes(" ")) {
+                    const parts = value
+                      .split(/\s+/)
+                      .filter((p) => p.trim() !== "");
+                    if (parts.length > 0) {
+                      const newProducts = [...products];
+                      parts.forEach((part) => {
+                        if (part && !newProducts.includes(part)) {
+                          newProducts.push(part);
+                        }
+                      });
+                      updateFunction(key, newProducts);
+                      e.target.value = "";
+                    }
+                  }
+                }}
+                onKeyDown={(e) => {
+                  const input = e.currentTarget;
+                  const value = input.value.trim();
+
+                  if (e.key === " " && value) {
+                    e.preventDefault();
+                    if (!products.includes(value)) {
+                      const newProducts = [...products, value];
+                      updateFunction(key, newProducts);
+                    }
+                    input.value = "";
+                  } else if (
+                    e.key === "Backspace" &&
+                    !value &&
+                    products.length > 0
+                  ) {
+                    const newProducts = products.slice(0, -1);
+                    updateFunction(key, newProducts);
+                  } else if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (value && !products.includes(value)) {
+                      const newProducts = [...products, value];
+                      updateFunction(key, newProducts);
+                    }
+                    input.value = "";
+                  }
+                }}
+                className="flex-1 min-w-[120px] outline-none text-sm bg-transparent"
+                placeholder={
+                  products.length === 0
+                    ? "Masukkan kode produk (tekan spasi untuk menambah)"
+                    : ""
+                }
+              />
+            </div>
           </div>
         </div>
       );
@@ -2150,7 +2435,6 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
 
       return groups;
     };
-
 
     const toggleReceiptConfig = (configIndex: number) => {
       setExpandedReceiptConfigs((prev) => {
@@ -2191,12 +2475,12 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         {/* Tab Navigation */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
           <div className="border-b border-gray-200 overflow-hidden">
-            <nav 
-              className="flex overflow-x-auto" 
-              style={{ 
-                WebkitOverflowScrolling: 'touch',
-                scrollbarWidth: 'none',
-                msOverflowStyle: 'none'
+            <nav
+              className="flex overflow-x-auto"
+              style={{
+                WebkitOverflowScrolling: "touch",
+                scrollbarWidth: "none",
+                msOverflowStyle: "none",
               }}
               aria-label="Tabs"
             >
@@ -2306,39 +2590,47 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
               <div className="px-4 pb-4">
                 <div className="space-y-3">
                   {(() => {
-                    const order = infoConfigOrder.length > 0 ? infoConfigOrder : Object.keys(infoConfig);
-                    const allKeys = new Set([...order, ...Object.keys(infoConfig)]);
-                    return Array.from(allKeys).map((sectionKey) => {
-                      if (!infoConfig[sectionKey]) return null;
-                      const sectionValue = infoConfig[sectionKey];
-                      if (
-                        typeof sectionValue === "object" &&
-                        sectionValue !== null
-                      ) {
-                        return (
-                          <div
-                            key={sectionKey}
-                            className="border border-gray-200 rounded-lg p-4"
-                          >
-                            <h3 className="text-sm font-medium text-gray-900 mb-2 capitalize">
-                              {sectionKey.replace(/_/g, " ")}
-                            </h3>
-                            <div className="space-y-2">
-                              {Object.entries(
-                                sectionValue as Record<string, any>,
-                              ).map(([key, value]) =>
-                                renderField(key, value, updateInfoConfig),
-                              )}
+                    const order =
+                      infoConfigOrder.length > 0
+                        ? infoConfigOrder
+                        : Object.keys(infoConfig);
+                    const allKeys = new Set([
+                      ...order,
+                      ...Object.keys(infoConfig),
+                    ]);
+                    return Array.from(allKeys)
+                      .map((sectionKey) => {
+                        if (!infoConfig[sectionKey]) return null;
+                        const sectionValue = infoConfig[sectionKey];
+                        if (
+                          typeof sectionValue === "object" &&
+                          sectionValue !== null
+                        ) {
+                          return (
+                            <div
+                              key={sectionKey}
+                              className="border border-gray-200 rounded-lg p-4"
+                            >
+                              <h3 className="text-sm font-medium text-gray-900 mb-2 capitalize">
+                                {sectionKey.replace(/_/g, " ")}
+                              </h3>
+                              <div className="space-y-2">
+                                {Object.entries(
+                                  sectionValue as Record<string, any>,
+                                ).map(([key, value]) =>
+                                  renderField(key, value, updateInfoConfig),
+                                )}
+                              </div>
                             </div>
-                          </div>
+                          );
+                        }
+                        return renderField(
+                          sectionKey,
+                          sectionValue,
+                          updateInfoConfig,
                         );
-                      }
-                      return renderField(
-                        sectionKey,
-                        sectionValue,
-                        updateInfoConfig,
-                      );
-                    }).filter(Boolean);
+                      })
+                      .filter(Boolean);
                   })()}
                 </div>
               </div>
@@ -2356,8 +2648,8 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                       <strong>Group Name Wajib:</strong>
                     </li>
                     <li className="ml-4">
-                      <strong>(?P&lt;amount&gt;...)</strong> - Capture group untuk
-                      nominal deposit (wajib)
+                      <strong>(?P&lt;amount&gt;...)</strong> - Capture group
+                      untuk nominal deposit (wajib)
                     </li>
                     <li className="ml-4">
                       <strong>(?P&lt;name&gt;...)</strong> - Capture group untuk
@@ -2391,39 +2683,51 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                 </div>
                 <div className="space-y-4">
                   {(() => {
-                    const order = tiketRegexConfigOrder.length > 0 ? tiketRegexConfigOrder : Object.keys(tiketRegexConfig);
-                    const allKeys = new Set([...order, ...Object.keys(tiketRegexConfig)]);
-                    return Array.from(allKeys).map((sectionKey) => {
-                      if (!tiketRegexConfig[sectionKey]) return null;
-                      const sectionValue = tiketRegexConfig[sectionKey];
-                      if (
-                        typeof sectionValue === "object" &&
-                        sectionValue !== null
-                      ) {
-                        return (
-                          <div
-                            key={sectionKey}
-                            className="border border-gray-200 rounded-lg p-4"
-                          >
-                            <h3 className="text-sm font-medium text-gray-900 mb-2 capitalize">
-                              {sectionKey.replace(/_/g, " ")}
-                            </h3>
-                            <div className="space-y-2">
-                              {Object.entries(
-                                sectionValue as Record<string, any>,
-                              ).map(([key, value]) =>
-                                renderField(key, value, updateTiketRegexConfig),
-                              )}
+                    const order =
+                      tiketRegexConfigOrder.length > 0
+                        ? tiketRegexConfigOrder
+                        : Object.keys(tiketRegexConfig);
+                    const allKeys = new Set([
+                      ...order,
+                      ...Object.keys(tiketRegexConfig),
+                    ]);
+                    return Array.from(allKeys)
+                      .map((sectionKey) => {
+                        if (!tiketRegexConfig[sectionKey]) return null;
+                        const sectionValue = tiketRegexConfig[sectionKey];
+                        if (
+                          typeof sectionValue === "object" &&
+                          sectionValue !== null
+                        ) {
+                          return (
+                            <div
+                              key={sectionKey}
+                              className="border border-gray-200 rounded-lg p-4"
+                            >
+                              <h3 className="text-sm font-medium text-gray-900 mb-2 capitalize">
+                                {sectionKey.replace(/_/g, " ")}
+                              </h3>
+                              <div className="space-y-2">
+                                {Object.entries(
+                                  sectionValue as Record<string, any>,
+                                ).map(([key, value]) =>
+                                  renderField(
+                                    key,
+                                    value,
+                                    updateTiketRegexConfig,
+                                  ),
+                                )}
+                              </div>
                             </div>
-                          </div>
+                          );
+                        }
+                        return renderField(
+                          sectionKey,
+                          sectionValue,
+                          updateTiketRegexConfig,
                         );
-                      }
-                      return renderField(
-                        sectionKey,
-                        sectionValue,
-                        updateTiketRegexConfig,
-                      );
-                    }).filter(Boolean);
+                      })
+                      .filter(Boolean);
                   })()}
                 </div>
               </div>
@@ -2457,17 +2761,25 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                 </div>
                 <div className="space-y-3">
                   {(() => {
-                    const order = checkProductsConfigOrder.length > 0 ? checkProductsConfigOrder : Object.keys(checkProductsConfig);
-                    const allKeys = new Set([...order, ...Object.keys(checkProductsConfig)]);
-                    return Array.from(allKeys).map((key) => {
-                      if (!checkProductsConfig[key]) return null;
-                      const products = checkProductsConfig[key];
-                      return renderCheckProductField(
-                        key,
-                        products,
-                        updateCheckProductsConfig,
-                      );
-                    }).filter(Boolean);
+                    const order =
+                      checkProductsConfigOrder.length > 0
+                        ? checkProductsConfigOrder
+                        : Object.keys(checkProductsConfig);
+                    const allKeys = new Set([
+                      ...order,
+                      ...Object.keys(checkProductsConfig),
+                    ]);
+                    return Array.from(allKeys)
+                      .map((key) => {
+                        if (!checkProductsConfig[key]) return null;
+                        const products = checkProductsConfig[key];
+                        return renderCheckProductField(
+                          key,
+                          products,
+                          updateCheckProductsConfig,
+                        );
+                      })
+                      .filter(Boolean);
                   })()}
                 </div>
                 <div className="mt-4 pt-4 border-t border-gray-200">
@@ -2513,70 +2825,87 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                 </div>
                 <div className="space-y-3">
                   {(() => {
-                    const order = combotrxConfigOrder.length > 0 ? combotrxConfigOrder : Object.keys(combotrxConfig);
-                    const allKeys = new Set([...order, ...Object.keys(combotrxConfig)]);
-                    return Array.from(allKeys).map((header) => {
-                      if (!combotrxConfig[header]) return null;
-                      const headerData = combotrxConfig[header];
-                      return (
-                      <div
-                        key={header}
-                        className="p-3 bg-white rounded-lg border border-gray-200"
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center space-x-2">
-                            <input
-                              type="text"
-                              value={localCombotrxHeaders[header] !== undefined ? localCombotrxHeaders[header] : header}
-                              onChange={(e) =>
-                                handleCombotrxHeaderNameChange(header, e.target.value)
-                              }
-                              onBlur={() => handleCombotrxHeaderNameBlur(header)}
-                              onKeyDown={(e) =>
-                                handleCombotrxHeaderNameKeyDown(header, e)
-                              }
-                              className="text-sm font-medium text-gray-900 bg-transparent border-b border-gray-300 focus:outline-none focus:border-blue-500 px-1 py-1"
-                              placeholder="Nama header"
-                            />
-                          </div>
-                          <button
-                            onClick={() => removeCombotrxHeader(header)}
-                            className="text-red-500 hover:text-red-700 p-1"
-                            title="Hapus header"
+                    const order =
+                      combotrxConfigOrder.length > 0
+                        ? combotrxConfigOrder
+                        : Object.keys(combotrxConfig);
+                    const allKeys = new Set([
+                      ...order,
+                      ...Object.keys(combotrxConfig),
+                    ]);
+                    return Array.from(allKeys)
+                      .map((header) => {
+                        if (!combotrxConfig[header]) return null;
+                        const headerData = combotrxConfig[header];
+                        return (
+                          <div
+                            key={header}
+                            className="p-3 bg-white rounded-lg border border-gray-200"
                           >
-                            ×
-                          </button>
-                        </div>
-                        <div className="space-y-2">
-                          {Object.entries(
-                            headerData as Record<string, any>,
-                          ).map(([field, value]) => (
-                            <div
-                              key={field}
-                              className="flex items-center space-x-2"
-                            >
-                              <label className="text-xs font-medium text-gray-700 w-16">
-                                {field}:
-                              </label>
-                              <input
-                                type="text"
-                                value={value as string}
-                                onChange={(e) =>
-                                  updateCombotrxConfig(
-                                    header,
-                                    field,
-                                    e.target.value,
-                                  )
-                                }
-                                className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                placeholder={`Masukkan ${field}`}
-                              />
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="text"
+                                  value={
+                                    localCombotrxHeaders[header] !== undefined
+                                      ? localCombotrxHeaders[header]
+                                      : header
+                                  }
+                                  onChange={(e) =>
+                                    handleCombotrxHeaderNameChange(
+                                      header,
+                                      e.target.value,
+                                    )
+                                  }
+                                  onBlur={() =>
+                                    handleCombotrxHeaderNameBlur(header)
+                                  }
+                                  onKeyDown={(e) =>
+                                    handleCombotrxHeaderNameKeyDown(header, e)
+                                  }
+                                  className="text-sm font-medium text-gray-900 bg-transparent border-b border-gray-300 focus:outline-none focus:border-blue-500 px-1 py-1"
+                                  placeholder="Nama header"
+                                />
+                              </div>
+                              <button
+                                onClick={() => removeCombotrxHeader(header)}
+                                className="text-red-500 hover:text-red-700 p-1"
+                                title="Hapus header"
+                              >
+                                ×
+                              </button>
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                      );
-                    }).filter(Boolean);
+                            <div className="space-y-2">
+                              {Object.entries(
+                                headerData as Record<string, any>,
+                              ).map(([field, value]) => (
+                                <div
+                                  key={field}
+                                  className="flex items-center space-x-2"
+                                >
+                                  <label className="text-xs font-medium text-gray-700 w-16">
+                                    {field}:
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={value as string}
+                                    onChange={(e) =>
+                                      updateCombotrxConfig(
+                                        header,
+                                        field,
+                                        e.target.value,
+                                      )
+                                    }
+                                    className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                    placeholder={`Masukkan ${field}`}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })
+                      .filter(Boolean);
                   })()}
                 </div>
                 <div className="mt-3 pt-3 border-t border-gray-200">
@@ -2620,69 +2949,79 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                       untuk custom group (bebas ditambahkan sebagai opsional)
                     </li>
                     <li>
-                      <strong>\\d+</strong> - Mencocokkan satu atau lebih digit
-                    </li>
-                    <li>
-                      <strong>[^/]+</strong> - Mencocokkan satu atau lebih
-                      karakter yang bukan "/"
+                      Tanpa regex cek produk, cek tetap aktif. Regex cek produk
+                      untuk merapihkan hasil cek.
                     </li>
                   </ul>
                 </div>
                 <div className="space-y-3">
                   {(() => {
-                    const order = cektagihanConfigOrder.length > 0 ? cektagihanConfigOrder : Object.keys(cektagihanConfig);
-                    const allKeys = new Set([...order, ...Object.keys(cektagihanConfig)]);
-                    return Array.from(allKeys).map((key) => {
-                      if (!cektagihanConfig[key]) return null;
-                      const value = cektagihanConfig[key];
-                      return (
-                    <div
-                      key={key}
-                      className="p-3 bg-white rounded-lg border border-gray-200"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="text"
-                            value={localCektagihanKeys[key] || key}
-                            onChange={(e) =>
-                              handleCektagihanKeyNameChange(key, e.target.value)
-                            }
-                            onBlur={() => handleCektagihanKeyNameBlur(key)}
-                            onKeyDown={(e) =>
-                              handleCektagihanKeyNameKeyDown(key, e)
-                            }
-                            className="text-sm font-medium text-gray-900 bg-transparent border-b border-gray-300 focus:outline-none focus:border-blue-500 px-1 py-1"
-                            placeholder="Nama key"
-                          />
-                        </div>
-                        <button
-                          onClick={() => removeCektagihanKey(key)}
-                          className="text-red-500 hover:text-red-700 p-1"
-                          title="Hapus key"
-                        >
-                          ×
-                        </button>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center space-x-2">
-                          <label className="text-xs font-medium text-gray-700 w-16">
-                            Regex:
-                          </label>
-                          <input
-                            type="text"
-                            value={value}
-                            onChange={(e) =>
-                              updateCektagihanConfig(key, e.target.value)
-                            }
-                            className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            placeholder="Masukkan regex pattern"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    );
-                  }).filter(Boolean);
+                    const order =
+                      cektagihanConfigOrder.length > 0
+                        ? cektagihanConfigOrder
+                        : Object.keys(cektagihanConfig);
+                    const allKeys = new Set([
+                      ...order,
+                      ...Object.keys(cektagihanConfig),
+                    ]);
+                    return Array.from(allKeys)
+                      .map((key) => {
+                        if (!cektagihanConfig[key]) return null;
+                        const value = cektagihanConfig[key];
+                        return (
+                          <div
+                            key={key}
+                            className="p-3 bg-white rounded-lg border border-gray-200"
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="text"
+                                  value={localCektagihanKeys[key] || key}
+                                  onChange={(e) =>
+                                    handleCektagihanKeyNameChange(
+                                      key,
+                                      e.target.value,
+                                    )
+                                  }
+                                  onBlur={() =>
+                                    handleCektagihanKeyNameBlur(key)
+                                  }
+                                  onKeyDown={(e) =>
+                                    handleCektagihanKeyNameKeyDown(key, e)
+                                  }
+                                  className="text-sm font-medium text-gray-900 bg-transparent border-b border-gray-300 focus:outline-none focus:border-blue-500 px-1 py-1"
+                                  placeholder="Nama key"
+                                />
+                              </div>
+                              <button
+                                onClick={() => removeCektagihanKey(key)}
+                                className="text-red-500 hover:text-red-700 p-1"
+                                title="Hapus key"
+                              >
+                                ×
+                              </button>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex items-center space-x-2">
+                                <label className="text-xs font-medium text-gray-700 w-16">
+                                  Regex:
+                                </label>
+                                <input
+                                  type="text"
+                                  value={value}
+                                  onChange={(e) =>
+                                    updateCektagihanConfig(key, e.target.value)
+                                  }
+                                  className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                  placeholder="Masukkan regex pattern"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                      .filter(Boolean);
                   })()}
                 </div>
                 <div className="mt-3 pt-3 border-t border-gray-200">
@@ -2964,93 +3303,85 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
             {/* Bantuan Config Section */}
             {bantuanConfig && activeTab === "bantuan_config" && (
               <div className="px-4 pb-4">
-                <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <h3 className="text-xs font-medium text-blue-900 mb-1">
-                    Keterangan Konfigurasi Bantuan:
-                  </h3>
-                  <ul className="text-xs text-blue-800 space-y-0.5">
-                    <li>
-                      <strong>mainCard</strong> - Judul utama layar bantuan
-                    </li>
-                    <li>
-                      <strong>mainCardContent</strong> - Deskripsi utama layar
-                      bantuan
-                    </li>
-                    <li>
-                      <strong>topicTitle</strong> - Judul untuk daftar topik
-                    </li>
-                    <li>
-                      <strong>topicCards</strong> - Array kartu topik dengan
-                      icon, judul, deskripsi, dan link
-                    </li>
-                    <li>
-                      <strong>Link Types</strong> - URL langsung atau route
-                      /webview dengan routeArgs
-                    </li>
-                  </ul>
-                </div>
+                <div className="space-y-6">
+                  {/* Main Configuration */}
+                  <div>
+                    <div className="flex items-center space-x-3 mb-4">
+                      <div className="h-6 w-6 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span className="text-blue-600 font-bold text-sm">
+                          B
+                        </span>
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          Konfigurasi Bantuan
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          Pengaturan utama untuk layar bantuan
+                        </p>
+                      </div>
+                    </div>
 
-                <div className="space-y-4">
-                  {/* Main Card Configuration */}
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <h3 className="text-sm font-semibold text-gray-900 mb-3">
-                      Konfigurasi Kartu Utama
-                    </h3>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="text-xs font-medium text-gray-700">
-                          Judul Kartu Utama:
-                        </label>
-                        <input
-                          type="text"
-                          value={bantuanConfig.mainCard}
-                          onChange={(e) =>
-                            updateBantuanConfig("mainCard", e.target.value)
-                          }
-                          className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
-                          placeholder="Butuh Bantuan?"
-                        />
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <div className="mb-3 pb-2 border-b border-gray-200">
+                        <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
+                          <div className="flex-shrink-0 w-1/4">Name</div>
+                          <div className="flex-shrink-0 text-gray-400">|</div>
+                          <div className="flex-1 min-w-0">Descriptions</div>
+                          <div className="flex-shrink-0 text-gray-400">|</div>
+                          <div className="flex-shrink-0 w-1/4">Value</div>
+                        </div>
                       </div>
-                      <div>
-                        <label className="text-xs font-medium text-gray-700">
-                          Konten Kartu Utama:
-                        </label>
-                        <textarea
-                          value={bantuanConfig.mainCardContent}
-                          onChange={(e) =>
+                      <div className="space-y-2">
+                        {renderBantuanRow(
+                          "mainCard",
+                          bantuanConfig.mainCard,
+                          (key, value) =>
                             updateBantuanConfig(
-                              "mainCardContent",
-                              e.target.value,
-                            )
-                          }
-                          className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
-                          rows={2}
-                          placeholder="Pusat bantuan kami siap membantu Anda..."
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium text-gray-700">
-                          Judul Topik:
-                        </label>
-                        <input
-                          type="text"
-                          value={bantuanConfig.topicTitle}
-                          onChange={(e) =>
-                            updateBantuanConfig("topicTitle", e.target.value)
-                          }
-                          className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
-                          placeholder="Topik Populer"
-                        />
+                              key as keyof BantuanConfig,
+                              value,
+                            ),
+                        )}
+                        {renderBantuanRow(
+                          "mainCardContent",
+                          bantuanConfig.mainCardContent,
+                          (key, value) =>
+                            updateBantuanConfig(
+                              key as keyof BantuanConfig,
+                              value,
+                            ),
+                        )}
+                        {renderBantuanRow(
+                          "topicTitle",
+                          bantuanConfig.topicTitle,
+                          (key, value) =>
+                            updateBantuanConfig(
+                              key as keyof BantuanConfig,
+                              value,
+                            ),
+                        )}
                       </div>
                     </div>
                   </div>
 
                   {/* Topic Cards */}
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-gray-900">
-                        Kartu Topik
-                      </h3>
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center space-x-3">
+                        <div className="h-6 w-6 bg-purple-100 rounded-full flex items-center justify-center">
+                          <span className="text-purple-600 font-bold text-sm">
+                            TC
+                          </span>
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            Kartu Topik
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            Konfigurasi kartu topik bantuan
+                          </p>
+                        </div>
+                      </div>
                       <button
                         onClick={addNewTopicCard}
                         className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center space-x-2"
@@ -3061,125 +3392,153 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                     </div>
 
                     {bantuanConfig.topicCards.map((card, index) => (
-                      <div
-                        key={index}
-                        className="p-4 bg-white rounded-lg border border-gray-200"
-                      >
+                      <div key={index} className="mb-6">
                         <div className="flex items-center justify-between mb-3">
-                          <h4 className="text-sm font-medium text-gray-900">
+                          <h4 className="text-md font-semibold text-gray-900">
                             Kartu {index + 1}
                           </h4>
                           <button
                             onClick={() => removeTopicCard(index)}
-                            className="text-red-500 hover:text-red-700 p-1"
+                            className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
                             title="Hapus kartu"
                           >
-                            ×
+                            Hapus
                           </button>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-xs font-medium text-gray-700">
-                              Icon URL:
-                            </label>
-                            <input
-                              type="text"
-                              value={card.icon}
-                              onChange={(e) =>
-                                updateTopicCard(index, "icon", e.target.value)
-                              }
-                              className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
-                              placeholder="https://example.com/icon.svg"
-                            />
+                        <div className="border border-gray-200 rounded-lg p-4">
+                          <div className="mb-3 pb-2 border-b border-gray-200">
+                            <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
+                              <div className="flex-shrink-0 w-1/4">Name</div>
+                              <div className="flex-shrink-0 text-gray-400">
+                                |
+                              </div>
+                              <div className="flex-1 min-w-0">Descriptions</div>
+                              <div className="flex-shrink-0 text-gray-400">
+                                |
+                              </div>
+                              <div className="flex-shrink-0 w-1/4">Value</div>
+                            </div>
                           </div>
+                          <div className="space-y-2">
+                            {renderTopicCardRow(
+                              index,
+                              "icon",
+                              card.icon,
+                              (field, value) =>
+                                updateTopicCard(index, field, value),
+                            )}
+                            {renderTopicCardRow(
+                              index,
+                              "title",
+                              card.title,
+                              (field, value) =>
+                                updateTopicCard(index, field, value),
+                            )}
+                            {renderTopicCardRow(
+                              index,
+                              "desc",
+                              card.desc,
+                              (field, value) =>
+                                updateTopicCard(index, field, value),
+                            )}
 
-                          <div>
-                            <label className="text-xs font-medium text-gray-700">
-                              Judul:
-                            </label>
-                            <input
-                              type="text"
-                              value={card.title}
-                              onChange={(e) =>
-                                updateTopicCard(index, "title", e.target.value)
-                              }
-                              className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
-                              placeholder="Judul topik"
-                            />
+                            {/* Link Type Selection */}
+                            <div className="flex gap-3 p-2 bg-white rounded border border-gray-200 hover:bg-gray-50">
+                              <div className="flex-shrink-0 w-1/4 flex items-start">
+                                <span className="text-sm font-medium text-gray-700 truncate block">
+                                  Tipe Link
+                                </span>
+                              </div>
+                              <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">
+                                |
+                              </div>
+                              <div className="flex-1 min-w-0 flex items-start">
+                                <span className="text-xs text-gray-600 block break-words whitespace-normal">
+                                  Pilih jenis link: URL langsung atau webview
+                                </span>
+                              </div>
+                              <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">
+                                |
+                              </div>
+                              <div className="flex-shrink-0 w-1/4 flex items-start">
+                                <div className="flex items-center space-x-4">
+                                  <label className="flex items-center space-x-2">
+                                    <input
+                                      type="radio"
+                                      name={`linkType-${index}`}
+                                      checked={!!card.url}
+                                      onChange={() =>
+                                        setTopicCardLinkType(index, "url")
+                                      }
+                                      className="rounded"
+                                    />
+                                    <span className="text-xs text-gray-700">
+                                      URL
+                                    </span>
+                                  </label>
+                                  <label className="flex items-center space-x-2">
+                                    <input
+                                      type="radio"
+                                      name={`linkType-${index}`}
+                                      checked={!!card.route}
+                                      onChange={() =>
+                                        setTopicCardLinkType(index, "route")
+                                      }
+                                      className="rounded"
+                                    />
+                                    <span className="text-xs text-gray-700">
+                                      Webview
+                                    </span>
+                                  </label>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* URL/Route Value */}
+                            {card.url ? (
+                              renderTopicCardRow(
+                                index,
+                                "url",
+                                card.url,
+                                (field, value) =>
+                                  updateTopicCard(index, field, value),
+                              )
+                            ) : (
+                              <div className="flex gap-3 p-2 bg-white rounded border border-gray-200 hover:bg-gray-50">
+                                <div className="flex-shrink-0 w-1/4 flex items-start">
+                                  <span className="text-sm font-medium text-gray-700 truncate block">
+                                    URL
+                                  </span>
+                                </div>
+                                <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">
+                                  |
+                                </div>
+                                <div className="flex-1 min-w-0 flex items-start">
+                                  <span className="text-xs text-gray-600 block break-words whitespace-normal">
+                                    URL yang akan digunakan dalam routeArgs
+                                    untuk webview
+                                  </span>
+                                </div>
+                                <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">
+                                  |
+                                </div>
+                                <div className="flex-shrink-0 w-1/4 flex items-start">
+                                  <input
+                                    type="text"
+                                    value={card.routeArgs?.url || ""}
+                                    onChange={(e) => {
+                                      updateTopicCard(index, "routeArgs", {
+                                        url: e.target.value,
+                                      });
+                                    }}
+                                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                    placeholder="https://example.com"
+                                  />
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        </div>
-
-                        <div className="mt-3">
-                          <label className="text-xs font-medium text-gray-700">
-                            Deskripsi:
-                          </label>
-                          <textarea
-                            value={card.desc}
-                            onChange={(e) =>
-                              updateTopicCard(index, "desc", e.target.value)
-                            }
-                            className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
-                            rows={2}
-                            placeholder="Deskripsi topik"
-                          />
-                        </div>
-
-                        <div className="mt-3">
-                          <label className="text-xs font-medium text-gray-700">
-                            Tipe Link:
-                          </label>
-                          <div className="flex items-center space-x-4 mt-1">
-                            <label className="flex items-center space-x-2">
-                              <input
-                                type="radio"
-                                name={`linkType-${index}`}
-                                checked={!!card.url}
-                                onChange={() =>
-                                  setTopicCardLinkType(index, "url")
-                                }
-                                className="rounded"
-                              />
-                              <span className="text-xs text-gray-700">
-                                URL Langsung
-                              </span>
-                            </label>
-                            <label className="flex items-center space-x-2">
-                              <input
-                                type="radio"
-                                name={`linkType-${index}`}
-                                checked={!!card.route}
-                                onChange={() =>
-                                  setTopicCardLinkType(index, "route")
-                                }
-                                className="rounded"
-                              />
-                              <span className="text-xs text-gray-700">
-                                Route /webview
-                              </span>
-                            </label>
-                          </div>
-                        </div>
-
-                        <div className="mt-3">
-                          <label className="text-xs font-medium text-gray-700">
-                            {card.url ? "URL:" : "URL dalam routeArgs:"}
-                          </label>
-                          <input
-                            type="text"
-                            value={card.url || card.routeArgs?.url || ""}
-                            onChange={(e) => {
-                              if (card.url) {
-                                updateTopicCard(index, "url", e.target.value);
-                              } else {
-                                updateTopicCard(index, "routeArgs", {
-                                  url: e.target.value,
-                                });
-                              }
-                            }}
-                            className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
-                            placeholder="https://example.com"
-                          />
                         </div>
                       </div>
                     ))}
@@ -3189,162 +3548,175 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
             )}
 
             {/* Dynamic Sections (Text Editing) */}
-            {Object.entries(groupedFields)
-              .map(([section, fields]) => {
-                if (activeTab !== section) return null;
+            {Object.entries(groupedFields).map(([section, fields]) => {
+              if (activeTab !== section) return null;
 
-                // Use stored order for textEditing section, otherwise use original order
-                let orderedFields = fields;
-                if (section === "textEditing" && appRulesOrder.length > 0) {
-                  orderedFields = appRulesOrder
-                    .map(key => [key, appRules?.[key]])
-                    .filter(([, value]) => value !== undefined) as Array<[string, any]>;
-                }
+              // Use stored order for textEditing section, otherwise use original order
+              let orderedFields = fields;
+              if (section === "textEditing" && appRulesOrder.length > 0) {
+                orderedFields = appRulesOrder
+                  .map((key) => [key, appRules?.[key]])
+                  .filter(([, value]) => value !== undefined) as Array<
+                  [string, any]
+                >;
+              }
 
-                const filteredFields = orderedFields.filter(
-                  ([key]) => shouldShowField(key),
-                );
+              const filteredFields = orderedFields.filter(([key]) =>
+                shouldShowField(key),
+              );
 
-                return (
-                  <div className="px-4 pb-4">
-                    {/* Search and Filter - only for textEditing section */}
-                    {section === "textEditing" && (
-                      <div className="mb-4 p-3 bg-gray-50 rounded-md">
-                        <div className="flex flex-col md:flex-row gap-3">
-                          <div className="flex-1">
-                            <div className="relative">
-                              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400" />
-                              <input
-                                type="text"
-                                placeholder="Cari pengaturan teks..."
-                                value={filterInputValue}
-                                onChange={(e) => setFilterInputValue(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    const filterValue = filterInputValue.trim();
-                                    if (!filterValue) {
-                                      setSearchTerm("");
-                                      setMatchedKeys(new Set());
-                                      return;
+              return (
+                <div className="px-4 pb-4">
+                  {/* Search and Filter - only for textEditing section */}
+                  {section === "textEditing" && (
+                    <div className="mb-4 p-3 bg-gray-50 rounded-md">
+                      <div className="flex flex-col md:flex-row gap-3">
+                        <div className="flex-1">
+                          <div className="relative">
+                            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400" />
+                            <input
+                              type="text"
+                              placeholder="Cari pengaturan teks..."
+                              value={filterInputValue}
+                              onChange={(e) =>
+                                setFilterInputValue(e.target.value)
+                              }
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  const filterValue = filterInputValue.trim();
+                                  if (!filterValue) {
+                                    setSearchTerm("");
+                                    setMatchedKeys(new Set());
+                                    return;
+                                  }
+
+                                  // Calculate which keys match the filter
+                                  const searchLower = filterValue.toLowerCase();
+                                  const newMatchedKeys = new Set<string>();
+
+                                  const textEditingFields =
+                                    groupedFields.textEditing || [];
+                                  textEditingFields.forEach(([key, value]) => {
+                                    if (EXCLUDED_KEYS.includes(key)) return;
+
+                                    if (
+                                      key.toLowerCase().includes(searchLower) ||
+                                      getFieldLabel(key)
+                                        .toLowerCase()
+                                        .includes(searchLower) ||
+                                      String(value)
+                                        .toLowerCase()
+                                        .includes(searchLower)
+                                    ) {
+                                      newMatchedKeys.add(key);
                                     }
-                                    
-                                    // Calculate which keys match the filter
-                                    const searchLower = filterValue.toLowerCase();
-                                    const newMatchedKeys = new Set<string>();
-                                    
-                                    const textEditingFields = groupedFields.textEditing || [];
-                                    textEditingFields.forEach(([key, value]) => {
-                                      if (EXCLUDED_KEYS.includes(key)) return;
-                                      
-                                      if (
-                                        key.toLowerCase().includes(searchLower) ||
-                                        getFieldLabel(key).toLowerCase().includes(searchLower) ||
-                                        String(value).toLowerCase().includes(searchLower)
-                                      ) {
-                                        newMatchedKeys.add(key);
-                                      }
-                                    });
-                                    
-                                    setMatchedKeys(newMatchedKeys);
-                                    setSearchTerm(filterValue);
-                                  }
-                                }}
-                                className="w-full pl-8 pr-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                              />
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => {
-                                const filterValue = filterInputValue.trim();
-                                if (!filterValue) {
-                                  setSearchTerm("");
-                                  setMatchedKeys(new Set());
-                                  return;
+                                  });
+
+                                  setMatchedKeys(newMatchedKeys);
+                                  setSearchTerm(filterValue);
                                 }
-                                
-                                // Calculate which keys match the filter
-                                const searchLower = filterValue.toLowerCase();
-                                const newMatchedKeys = new Set<string>();
-                                
-                                const textEditingFields = groupedFields.textEditing || [];
-                                textEditingFields.forEach(([key, value]) => {
-                                  const excludedKeys = [
-                                    "verificationFeature",
-                                    "exchangePoinToSaldo",
-                                    "permissionIntroFeatureEnabled",
-                                    "blockNonVerifiedMLM",
-                                    "exchangePoinToGift",
-                                    "blockNonVerifiedTransfer",
-                                    "biometrictTrxFeature",
-                                    "editProfileFeature",
-                                    "maximumVoucherActivation",
-                                    "minimumProductPriceToDisplay",
-                                    "cs_email",
-                                    "cs_whatsapp",
-                                    "cs_phone",
-                                    "maxWelcomePosterPerDay",
-                                    "newUserMarkup",
-                                    "newUserGroup",
-                                    "newUserUpline",
-                                    "blockNonVerifiedTransfer",
-                                    "blockNonVerifiedMLM",
-                                    "maxTransaction",
-                                    "maxTransactionsTotal",
-                                    "whatsappHelp",
-                                    "whatsappHelpFormat",
-                                    "liveChatHelpFormat",
-                                  ];
-                                  
-                                  if (excludedKeys.includes(key)) return;
-                                  
-                                  if (
-                                    key.toLowerCase().includes(searchLower) ||
-                                    getFieldLabel(key).toLowerCase().includes(searchLower) ||
-                                    String(value).toLowerCase().includes(searchLower)
-                                  ) {
-                                    newMatchedKeys.add(key);
-                                  }
-                                });
-                                
-                                setMatchedKeys(newMatchedKeys);
-                                setSearchTerm(filterValue);
                               }}
-                              className="px-4 py-1 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                            >
-                              Filter
-                            </button>
-                            {searchTerm && (
-                              <button
-                                onClick={() => {
-                                  setFilterInputValue("");
-                                  setSearchTerm("");
-                                  setMatchedKeys(new Set());
-                                }}
-                                className="px-4 py-1 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-                              >
-                                Clear
-                              </button>
-                            )}
+                              className="w-full pl-8 pr-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            />
                           </div>
                         </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              const filterValue = filterInputValue.trim();
+                              if (!filterValue) {
+                                setSearchTerm("");
+                                setMatchedKeys(new Set());
+                                return;
+                              }
+
+                              // Calculate which keys match the filter
+                              const searchLower = filterValue.toLowerCase();
+                              const newMatchedKeys = new Set<string>();
+
+                              const textEditingFields =
+                                groupedFields.textEditing || [];
+                              textEditingFields.forEach(([key, value]) => {
+                                const excludedKeys = [
+                                  "verificationFeature",
+                                  "exchangePoinToSaldo",
+                                  "permissionIntroFeatureEnabled",
+                                  "blockNonVerifiedMLM",
+                                  "exchangePoinToGift",
+                                  "blockNonVerifiedTransfer",
+                                  "biometrictTrxFeature",
+                                  "editProfileFeature",
+                                  "maximumVoucherActivation",
+                                  "minimumProductPriceToDisplay",
+                                  "cs_email",
+                                  "cs_whatsapp",
+                                  "cs_phone",
+                                  "maxWelcomePosterPerDay",
+                                  "newUserMarkup",
+                                  "newUserGroup",
+                                  "newUserUpline",
+                                  "blockNonVerifiedTransfer",
+                                  "blockNonVerifiedMLM",
+                                  "maxTransaction",
+                                  "maxTransactionsTotal",
+                                  "whatsappHelp",
+                                  "whatsappHelpFormat",
+                                  "liveChatHelpFormat",
+                                ];
+
+                                if (excludedKeys.includes(key)) return;
+
+                                if (
+                                  key.toLowerCase().includes(searchLower) ||
+                                  getFieldLabel(key)
+                                    .toLowerCase()
+                                    .includes(searchLower) ||
+                                  String(value)
+                                    .toLowerCase()
+                                    .includes(searchLower)
+                                ) {
+                                  newMatchedKeys.add(key);
+                                }
+                              });
+
+                              setMatchedKeys(newMatchedKeys);
+                              setSearchTerm(filterValue);
+                            }}
+                            className="px-4 py-1 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                          >
+                            Filter
+                          </button>
+                          {searchTerm && (
+                            <button
+                              onClick={() => {
+                                setFilterInputValue("");
+                                setSearchTerm("");
+                                setMatchedKeys(new Set());
+                              }}
+                              className="px-4 py-1 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    )}
-                    
-                    {filteredFields.length > 0 ? (
-                      <div className="space-y-3">
-                        {filteredFields.map(([key, value]) =>
-                          renderField(key, value),
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-gray-500">
-                        Tidak ada hasil yang cocok dengan pencarian Anda.
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                    </div>
+                  )}
+
+                  {filteredFields.length > 0 ? (
+                    <div className="space-y-3">
+                      {filteredFields.map(([key, value]) =>
+                        renderField(key, value),
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      Tidak ada hasil yang cocok dengan pencarian Anda.
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
