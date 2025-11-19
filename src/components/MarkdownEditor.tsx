@@ -16,10 +16,13 @@ import {
   Search,
   Copy,
   ExternalLink,
-  Image
+  Image,
+  Upload,
+  X
 } from 'lucide-react';
 import { getApiUrl, X_TOKEN_VALUE } from '../config/api';
 import { getCachedMarkdownFiles, setCachedMarkdownFiles, getCachedMarkdownFile, setCachedMarkdownFile, removeCachedMarkdownFile, mergeMarkdownFiles } from '../utils/markdownCache';
+import AssetsManager from './AssetsManager';
 
 interface MarkdownEditorProps {
   authSeed: string;
@@ -62,6 +65,9 @@ const MarkdownEditor = React.forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
   const [showImageDialog, setShowImageDialog] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
   const [imageAlt, setImageAlt] = useState('');
+  const [showAssetPicker, setShowAssetPicker] = useState(false);
+  const [assetsRefreshTrigger, setAssetsRefreshTrigger] = useState(0);
+  const imageFileInputRef = useRef<HTMLInputElement>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -457,6 +463,122 @@ const MarkdownEditor = React.forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
     setImageUrl('');
     setImageAlt('');
     setShowImageDialog(false);
+  };
+
+  const getPublicUrl = async (filename: string) => {
+    // Strip any leading /assets/ or / from the filename
+    const cleanFilename = filename.replace(/^\/assets\//, '').replace(/^\//, '');
+    const apiUrl = await getApiUrl('');
+    return `${apiUrl}/assets/${cleanFilename}`;
+  };
+
+  const handleUploadFile = async (file: File) => {
+    try {
+      const sessionKey = localStorage.getItem('adminSessionKey');
+      if (!sessionKey) {
+        console.error('Session key not found');
+        return null;
+      }
+
+      const formData = new FormData();
+      formData.append('session_key', sessionKey);
+      formData.append('auth_seed', authSeed);
+      formData.append('file', file);
+
+      const apiUrl = await getApiUrl('/admin/assets/upload');
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'X-Token': X_TOKEN_VALUE,
+        },
+        body: formData,
+      });
+
+      const data = await response.json();
+      console.log('Upload response:', data);
+      
+      if (data.success) {
+        // Try different response formats
+        let filename = null;
+        let publicUrl = null;
+        
+        // Check for filename in various places
+        if (data.filename) {
+          filename = data.filename;
+        } else if (data.asset?.filename) {
+          filename = data.asset.filename;
+        } else if (data.file_url) {
+          // Extract filename from file_url
+          const urlParts = data.file_url.split('/');
+          filename = urlParts[urlParts.length - 1];
+        }
+        
+        // Check for public_url or file_url (might be full URL or relative)
+        if (data.public_url) {
+          publicUrl = data.public_url;
+        } else if (data.asset?.public_url) {
+          publicUrl = data.asset.public_url;
+        } else if (data.file_url) {
+          publicUrl = data.file_url;
+        }
+        
+        // If we have a URL but it's relative (starts with /), make it absolute
+        if (publicUrl && publicUrl.startsWith('/')) {
+          const baseUrl = await getApiUrl('');
+          publicUrl = `${baseUrl}${publicUrl}`;
+        }
+        
+        // If we still don't have a URL but have a filename, construct it
+        if (!publicUrl && filename) {
+          publicUrl = await getPublicUrl(filename);
+        }
+        
+        console.log('Extracted filename:', filename);
+        console.log('Constructed publicUrl:', publicUrl);
+        
+        if (publicUrl) {
+          setAssetsRefreshTrigger(prev => prev + 1);
+          return publicUrl;
+        } else {
+          console.error('Upload succeeded but no URL found in response:', data);
+          return null;
+        }
+      } else {
+        console.error('Upload failed:', data.message || 'Unknown error');
+        return null;
+      }
+    } catch (error) {
+      console.error('Upload failed:', error);
+      return null;
+    }
+  };
+
+  const handleImageFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    console.log('Starting file upload for markdown image');
+    const url = await handleUploadFile(file);
+    console.log('Upload completed, URL:', url);
+    
+    if (url) {
+      console.log('Setting imageUrl to:', url);
+      setImageUrl(url);
+    } else {
+      console.error('Failed to get URL from upload');
+    }
+
+    if (imageFileInputRef.current) {
+      imageFileInputRef.current.value = '';
+    }
+  };
+
+  const handleImageAssetSelect = (url: string) => {
+    if (url) {
+      console.log('Asset selected, setting imageUrl to:', url);
+      setImageUrl(url);
+      setShowAssetPicker(false);
+    }
   };
 
   const renderPreview = () => {
@@ -898,14 +1020,39 @@ const MarkdownEditor = React.forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Image URL
               </label>
-              <input
-                type="url"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="https://example.com/image.jpg"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                autoFocus
-              />
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  placeholder="https://example.com/image.jpg"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  autoFocus
+                />
+                <input
+                  ref={imageFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageFileSelect}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => imageFileInputRef.current?.click()}
+                  className="px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors flex items-center gap-1"
+                  title="Upload image"
+                >
+                  <Upload size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAssetPicker(true)}
+                  className="px-3 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors flex items-center gap-1"
+                  title="Select from assets"
+                >
+                  <Image size={14} />
+                </button>
+              </div>
             </div>
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -933,6 +1080,35 @@ const MarkdownEditor = React.forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
               >
                 Insert Image
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Asset Picker Modal */}
+      {showAssetPicker && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg w-[90vw] max-w-6xl h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-800">Pilih atau Upload Asset</h3>
+              <button
+                onClick={() => setShowAssetPicker(false)}
+                className="p-1 text-gray-600 hover:text-gray-800 rounded"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <AssetsManager 
+                authSeed={authSeed}
+                refreshTrigger={assetsRefreshTrigger}
+                onAssetSelect={handleImageAssetSelect}
+              />
+              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800 mb-2">
+                  <strong>Petunjuk:</strong> Klik langsung pada gambar untuk memilih dan menerapkan ke field Image URL secara otomatis.
+                </p>
+              </div>
             </div>
           </div>
         </div>
