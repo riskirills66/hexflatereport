@@ -1579,7 +1579,7 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
           className="flex gap-3 p-2 bg-white rounded border border-gray-200 hover:bg-gray-50"
         >
           {/* Name */}
-          <div className="flex-shrink-0 w-1/4 flex items-start">
+          <div className="flex-shrink-0 w-1/6 flex items-start">
             <span
               className="text-sm font-medium text-gray-700 truncate block"
               title={label}
@@ -1609,7 +1609,7 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
           </div>
 
           {/* Value */}
-          <div className="flex-shrink-0 w-1/4 flex items-start">
+          <div className="flex-shrink-0 w-1/3 flex items-start">
             {isLongText ? (
               <textarea
                 value={value || ""}
@@ -1665,7 +1665,7 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
           className="flex gap-3 p-2 bg-white rounded border border-gray-200 hover:bg-gray-50"
         >
           {/* Name */}
-          <div className="flex-shrink-0 w-1/4 flex items-start">
+          <div className="flex-shrink-0 w-1/6 flex items-start">
             <span
               className="text-sm font-medium text-gray-700 truncate block"
               title={label}
@@ -1695,7 +1695,7 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
           </div>
 
           {/* Value */}
-          <div className="flex-shrink-0 w-1/4 flex items-start">
+          <div className="flex-shrink-0 w-1/3 flex items-start">
             {isLongText ? (
               <textarea
                 value={value || ""}
@@ -1739,6 +1739,112 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
         }
         return { ...prev, topicCards: newCards };
       });
+    };
+
+    const getReceiptFieldLabel = (key: keyof ReceiptConfig): string => {
+      const labels: Record<keyof ReceiptConfig, string> = {
+        name: "Nama",
+        product_prefixes: "Produk",
+        regex: "Regex Pattern",
+        highlight_key: "Highlight Key",
+        dash: "Dash",
+        receipt_title: "Receipt Title",
+        info_text: "Info Text",
+      };
+      return labels[key] || key;
+    };
+
+    const getReceiptFieldDescription = (key: keyof ReceiptConfig): string => {
+      const descriptions: Record<keyof ReceiptConfig, string> = {
+        name: "Nama konfigurasi struk",
+        product_prefixes:
+          "Array prefix produk yang menggunakan konfigurasi ini",
+        regex:
+          "Pattern regex untuk parsing data dari response. Nama group regex (contoh: (?P<nama>...), (?P<tagihan>...)) akan menjadi nama key detail pada struk",
+        highlight_key:
+          "Key yang akan di-highlight pada struk (harus sesuai dengan nama group regex)",
+        dash: "Untuk menambahkan separator (-) pada nilai highlight_key setiap 4 digit. Contoh: 1234-5678-9012-3456",
+        receipt_title: "Judul yang ditampilkan di struk",
+        info_text: "Teks informasi di bawah struk",
+      };
+      return descriptions[key] || "";
+    };
+
+    const renderReceiptRow = (
+      configIndex: number,
+      field: keyof ReceiptConfig,
+      value: any,
+      onUpdate: (field: keyof ReceiptConfig, value: any) => void,
+    ) => {
+      const label = getReceiptFieldLabel(field);
+      const description = getReceiptFieldDescription(field);
+      const isLongText =
+        field === "regex" || field === "info_text" || String(value).length > 50;
+
+      return (
+        <div
+          key={field}
+          className="flex gap-3 p-2 bg-white rounded border border-gray-200 hover:bg-gray-50"
+        >
+          {/* Name */}
+          <div className="flex-shrink-0 w-1/6 flex items-start">
+            <span
+              className="text-sm font-medium text-gray-700 truncate block"
+              title={label}
+            >
+              {label}
+            </span>
+          </div>
+
+          {/* Separator */}
+          <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">
+            |
+          </div>
+
+          {/* Description */}
+          <div className="flex-1 min-w-0 flex items-start">
+            <span
+              className="text-xs text-gray-600 block break-words whitespace-normal"
+              title={description}
+            >
+              {description}
+            </span>
+          </div>
+
+          {/* Separator */}
+          <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">
+            |
+          </div>
+
+          {/* Value */}
+          <div className="flex-shrink-0 w-1/3 flex items-start">
+            {field === "dash" ? (
+              <select
+                value={value.toString()}
+                onChange={(e) => onUpdate(field, e.target.value === "true")}
+                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="false">False</option>
+                <option value="true">True</option>
+              </select>
+            ) : isLongText ? (
+              <textarea
+                value={value || ""}
+                onChange={(e) => onUpdate(field, e.target.value)}
+                rows={2}
+                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            ) : (
+              <input
+                type="text"
+                value={value || ""}
+                onChange={(e) => onUpdate(field, e.target.value)}
+                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            )}
+          </div>
+        </div>
+      );
     };
 
     // App Info Configuration removed
@@ -3039,251 +3145,215 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
             {/* Receipt Maps Config Section */}
             {receiptMapsConfig && activeTab === "receipt_maps_config" && (
               <div className="px-4 pb-4">
-                <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <h3 className="text-xs font-medium text-blue-900 mb-1">
-                    Keterangan Konfigurasi Struk:
-                  </h3>
-                  <ul className="text-xs text-blue-800 space-y-0.5">
-                    <li>
-                      <strong>name</strong> - Nama konfigurasi struk
-                    </li>
-                    <li>
-                      <strong>product_prefixes</strong> - Array prefix produk
-                      yang menggunakan konfigurasi ini
-                    </li>
-                    <li>
-                      <strong>regex</strong> - Pattern regex untuk parsing data
-                      dari response. <strong>Catatan:</strong> Nama group regex
-                      (contoh: <strong>(?P&lt;nama&gt;...)</strong>,{" "}
-                      <strong>(?P&lt;tagihan&gt;...)</strong>) akan menjadi nama
-                      key detail pada struk
-                    </li>
-                    <li>
-                      <strong>highlight_key</strong> - Key yang akan
-                      di-highlight pada struk (harus sesuai dengan nama group
-                      regex)
-                    </li>
-                    <li>
-                      <strong>dash</strong> - Untuk menambahkan separator (-)
-                      pada nilai highlight_key setiap 4 digit. Contoh:
-                      1234-5678-9012-3456
-                    </li>
-                    <li>
-                      <strong>receipt_title</strong> - Judul yang ditampilkan di
-                      struk
-                    </li>
-                    <li>
-                      <strong>info_text</strong> - Teks informasi di bawah struk
-                    </li>
-                  </ul>
-                </div>
-                <div className="space-y-4">
+                <div className="space-y-6">
                   {receiptMapsConfig.configs.map((config, index) => (
-                    <div
-                      key={index}
-                      className="bg-gray-50 rounded-md border border-gray-300 ml-4"
-                    >
-                      <div className="p-3 flex items-center justify-between">
-                        <button
-                          onClick={() => toggleReceiptConfig(index)}
-                          className="flex items-center space-x-2 hover:bg-gray-100 p-2 rounded-md flex-1"
-                        >
-                          <div className="w-2 h-2 bg-indigo-400 rounded-full"></div>
-                          <div className="text-left">
-                            <h3 className="text-sm font-medium text-gray-800">
+                    <div key={index}>
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center space-x-3">
+                          <div className="h-6 w-6 bg-indigo-100 rounded-full flex items-center justify-center">
+                            <span className="text-indigo-600 font-bold text-sm">
+                              S
+                            </span>
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900">
                               Konfigurasi {config.name}
                             </h3>
-                            <p className="text-xs text-gray-500">
-                              Klik untuk{" "}
-                              {expandedReceiptConfigs.has(index)
-                                ? "menyembunyikan"
-                                : "menampilkan"}{" "}
-                              detail
+                            <p className="text-sm text-gray-600">
+                              Pengaturan struk untuk produk tertentu
                             </p>
                           </div>
-                        </button>
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => removeReceiptConfig(index)}
-                            className="text-red-500 hover:text-red-700 p-1 text-sm"
-                            title="Hapus konfigurasi"
-                          >
-                            ×
-                          </button>
-                          {expandedReceiptConfigs.has(index) ? (
-                            <ChevronUp className="h-3 w-3 text-gray-400" />
-                          ) : (
-                            <ChevronDown className="h-3 w-3 text-gray-400" />
-                          )}
                         </div>
+                        <button
+                          onClick={() => removeReceiptConfig(index)}
+                          className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                          title="Hapus konfigurasi"
+                        >
+                          Hapus
+                        </button>
                       </div>
 
-                      {expandedReceiptConfigs.has(index) && (
-                        <div className="px-3 pb-3">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div>
-                              <label className="text-xs font-medium text-gray-700">
-                                Nama:
-                              </label>
-                              <input
-                                type="text"
-                                value={config.name}
-                                onChange={(e) =>
-                                  updateReceiptConfig(
-                                    index,
-                                    "name",
-                                    e.target.value,
-                                  )
-                                }
-                                className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
-                                placeholder="Nama konfigurasi"
-                              />
-                            </div>
-
-                            <div>
-                              <label className="text-xs font-medium text-gray-700">
-                                Highlight Key:
-                              </label>
-                              <input
-                                type="text"
-                                value={config.highlight_key}
-                                onChange={(e) =>
-                                  updateReceiptConfig(
-                                    index,
-                                    "highlight_key",
-                                    e.target.value,
-                                  )
-                                }
-                                className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
-                                placeholder="Key yang di-highlight"
-                              />
-                            </div>
-
-                            <div>
-                              <label className="text-xs font-medium text-gray-700">
-                                Dash:
-                              </label>
-                              <select
-                                value={config.dash.toString()}
-                                onChange={(e) =>
-                                  updateReceiptConfig(
-                                    index,
-                                    "dash",
-                                    e.target.value === "true",
-                                  )
-                                }
-                                className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
-                              >
-                                <option value="false">False</option>
-                                <option value="true">True</option>
-                              </select>
-                            </div>
-
-                            <div>
-                              <label className="text-xs font-medium text-gray-700">
-                                Receipt Title:
-                              </label>
-                              <input
-                                type="text"
-                                value={config.receipt_title}
-                                onChange={(e) =>
-                                  updateReceiptConfig(
-                                    index,
-                                    "receipt_title",
-                                    e.target.value,
-                                  )
-                                }
-                                className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
-                                placeholder="Judul struk"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="mt-3">
-                            <label className="text-xs font-medium text-gray-700">
-                              Product Prefixes:
-                            </label>
-                            <div className="space-y-2">
-                              {config.product_prefixes.map(
-                                (prefix, prefixIndex) => (
-                                  <div
-                                    key={prefixIndex}
-                                    className="flex items-center space-x-2"
-                                  >
-                                    <input
-                                      type="text"
-                                      value={prefix}
-                                      onChange={(e) =>
-                                        updateProductPrefix(
-                                          index,
-                                          prefixIndex,
-                                          e.target.value,
-                                        )
-                                      }
-                                      className="flex-1 px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
-                                      placeholder="Product prefix (e.g., BPLN, TEST%, PMP%)"
-                                    />
-                                    <button
-                                      onClick={() =>
-                                        removeProductPrefix(index, prefixIndex)
-                                      }
-                                      className="text-red-500 hover:text-red-700 p-1"
-                                      title="Remove prefix"
-                                    >
-                                      ×
-                                    </button>
-                                  </div>
-                                ),
-                              )}
-                              <button
-                                onClick={() => addProductPrefix(index)}
-                                className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 flex items-center space-x-1"
-                              >
-                                <span>+</span>
-                                <span>Add Prefix</span>
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className="mt-3">
-                            <label className="text-xs font-medium text-gray-700">
-                              Regex Pattern:
-                            </label>
-                            <textarea
-                              value={config.regex}
-                              onChange={(e) =>
-                                updateReceiptConfig(
-                                  index,
-                                  "regex",
-                                  e.target.value,
-                                )
-                              }
-                              className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
-                              rows={2}
-                              placeholder="Regex pattern untuk parsing data"
-                            />
-                          </div>
-
-                          <div className="mt-3">
-                            <label className="text-xs font-medium text-gray-700">
-                              Info Text:
-                            </label>
-                            <textarea
-                              value={config.info_text}
-                              onChange={(e) =>
-                                updateReceiptConfig(
-                                  index,
-                                  "info_text",
-                                  e.target.value,
-                                )
-                              }
-                              className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
-                              rows={2}
-                              placeholder="Teks informasi di bawah struk"
-                            />
+                      <div className="border border-gray-200 rounded-lg p-4">
+                        <div className="mb-3 pb-2 border-b border-gray-200">
+                          <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
+                            <div className="flex-shrink-0 w-1/6">Name</div>
+                            <div className="flex-shrink-0 text-gray-400">|</div>
+                            <div className="flex-1 min-w-0">Descriptions</div>
+                            <div className="flex-shrink-0 text-gray-400">|</div>
+                            <div className="flex-shrink-0 w-1/3">Value</div>
                           </div>
                         </div>
-                      )}
+                        <div className="space-y-2">
+                          {renderReceiptRow(
+                            index,
+                            "name",
+                            config.name,
+                            (field, value) =>
+                              updateReceiptConfig(index, field, value),
+                          )}
+                          {renderReceiptRow(
+                            index,
+                            "highlight_key",
+                            config.highlight_key,
+                            (field, value) =>
+                              updateReceiptConfig(index, field, value),
+                          )}
+                          {renderReceiptRow(
+                            index,
+                            "dash",
+                            config.dash,
+                            (field, value) =>
+                              updateReceiptConfig(index, field, value),
+                          )}
+                          {renderReceiptRow(
+                            index,
+                            "receipt_title",
+                            config.receipt_title,
+                            (field, value) =>
+                              updateReceiptConfig(index, field, value),
+                          )}
+                          {renderReceiptRow(
+                            index,
+                            "regex",
+                            config.regex,
+                            (field, value) =>
+                              updateReceiptConfig(index, field, value),
+                          )}
+                          {renderReceiptRow(
+                            index,
+                            "info_text",
+                            config.info_text,
+                            (field, value) =>
+                              updateReceiptConfig(index, field, value),
+                          )}
+
+                          {/* Produk - Special handling for array with tag editing, merged into description column */}
+                          <div className="flex gap-3 p-2 bg-white rounded border border-gray-200 hover:bg-gray-50">
+                            <div className="flex-shrink-0 w-1/6 flex items-start">
+                              <span className="text-sm font-medium text-gray-700 truncate block">
+                                Produk
+                              </span>
+                            </div>
+                            <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">
+                              |
+                            </div>
+                            <div className="flex-1 min-w-0 flex items-start">
+                              <div className="w-full space-y-2">
+                                <span className="text-xs text-gray-600 block break-words whitespace-normal">
+                                  Produk yang menggunakan konfigurasi ini. Ketik
+                                  dan pisahkan dengan spasi. Gunakan '%' sebagai
+                                  wildcard.
+                                </span>
+                                <div className="flex flex-wrap gap-2 p-2 min-h-[42px] border border-gray-300 rounded-md focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent bg-white">
+                                  {config.product_prefixes.map(
+                                    (prefix, prefixIndex) => (
+                                      <div
+                                        key={prefixIndex}
+                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-md border border-blue-200 text-sm"
+                                      >
+                                        <span>{prefix}</span>
+                                        <button
+                                          onClick={() =>
+                                            removeProductPrefix(
+                                              index,
+                                              prefixIndex,
+                                            )
+                                          }
+                                          className="ml-0.5 hover:bg-blue-100 rounded-full p-0.5 transition-colors"
+                                          type="button"
+                                          aria-label={`Remove ${prefix}`}
+                                        >
+                                          <svg
+                                            className="w-3.5 h-3.5"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                          >
+                                            <path
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                              strokeWidth={2}
+                                              d="M6 18L18 6M6 6l12 12"
+                                            />
+                                          </svg>
+                                        </button>
+                                      </div>
+                                    ),
+                                  )}
+                                  <input
+                                    type="text"
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      if (value.includes(" ")) {
+                                        const parts = value
+                                          .split(/\s+/)
+                                          .filter((p) => p.trim() !== "");
+                                        if (parts.length > 0) {
+                                          const newPrefixes = [
+                                            ...config.product_prefixes,
+                                          ];
+                                          parts.forEach((part) => {
+                                            if (
+                                              part &&
+                                              !newPrefixes.includes(part)
+                                            ) {
+                                              newPrefixes.push(part);
+                                            }
+                                          });
+                                          updateReceiptConfig(
+                                            index,
+                                            "product_prefixes",
+                                            newPrefixes,
+                                          );
+                                          e.target.value = "";
+                                        }
+                                      }
+                                    }}
+                                    onKeyDown={(e) => {
+                                      const input = e.currentTarget;
+                                      const value = input.value.trim();
+
+                                      if (e.key === " " && value) {
+                                        e.preventDefault();
+                                        if (
+                                          !config.product_prefixes.includes(
+                                            value,
+                                          )
+                                        ) {
+                                          const newPrefixes = [
+                                            ...config.product_prefixes,
+                                            value,
+                                          ];
+                                          updateReceiptConfig(
+                                            index,
+                                            "product_prefixes",
+                                            newPrefixes,
+                                          );
+                                        }
+                                        input.value = "";
+                                      } else if (
+                                        e.key === "Backspace" &&
+                                        value === "" &&
+                                        config.product_prefixes.length > 0
+                                      ) {
+                                        const newPrefixes =
+                                          config.product_prefixes.slice(0, -1);
+                                        updateReceiptConfig(
+                                          index,
+                                          "product_prefixes",
+                                          newPrefixes,
+                                        );
+                                      }
+                                    }}
+                                    className="flex-1 min-w-[120px] outline-none text-sm"
+                                    placeholder="Ketik produk dan tekan spasi"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -3325,11 +3395,11 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                     <div className="border border-gray-200 rounded-lg p-4">
                       <div className="mb-3 pb-2 border-b border-gray-200">
                         <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
-                          <div className="flex-shrink-0 w-1/4">Name</div>
+                          <div className="flex-shrink-0 w-1/6">Name</div>
                           <div className="flex-shrink-0 text-gray-400">|</div>
                           <div className="flex-1 min-w-0">Descriptions</div>
                           <div className="flex-shrink-0 text-gray-400">|</div>
-                          <div className="flex-shrink-0 w-1/4">Value</div>
+                          <div className="flex-shrink-0 w-1/3">Value</div>
                         </div>
                       </div>
                       <div className="space-y-2">
@@ -3409,7 +3479,7 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                         <div className="border border-gray-200 rounded-lg p-4">
                           <div className="mb-3 pb-2 border-b border-gray-200">
                             <div className="flex items-center gap-3 text-sm font-semibold text-gray-700">
-                              <div className="flex-shrink-0 w-1/4">Name</div>
+                              <div className="flex-shrink-0 w-1/6">Name</div>
                               <div className="flex-shrink-0 text-gray-400">
                                 |
                               </div>
@@ -3417,7 +3487,7 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
                               <div className="flex-shrink-0 text-gray-400">
                                 |
                               </div>
-                              <div className="flex-shrink-0 w-1/4">Value</div>
+                              <div className="flex-shrink-0 w-1/3">Value</div>
                             </div>
                           </div>
                           <div className="space-y-2">
@@ -3445,7 +3515,7 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
 
                             {/* Link Type Selection */}
                             <div className="flex gap-3 p-2 bg-white rounded border border-gray-200 hover:bg-gray-50">
-                              <div className="flex-shrink-0 w-1/4 flex items-start">
+                              <div className="flex-shrink-0 w-1/6 flex items-start">
                                 <span className="text-sm font-medium text-gray-700 truncate block">
                                   Tipe Link
                                 </span>
