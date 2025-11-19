@@ -69,6 +69,7 @@ import { preloadSystemLogs } from "../utils/systemLogsCache";
 import { preloadSecurityManagement } from "../utils/securityManagementCache";
 import { useGlobalChatWebSocket } from "../hooks/useGlobalChatWebSocket";
 import { getCachedConversations } from "../utils/chatCache";
+import { getCachedHealthCheck, measureHealthCheckResponseTime } from "../utils/healthCheckCache";
 
 interface AdminDashboardProps {
   authSeed: string;
@@ -2090,6 +2091,10 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
   gridCols: string;
   statsGridRef: React.RefObject<HTMLDivElement>;
 }>(({ authSeed, onNavigate, gridCols, statsGridRef }, ref) => {
+  // Load cached health check data synchronously
+  const cachedHealthCheck = getCachedHealthCheck();
+  const initialApiResponseTime = cachedHealthCheck?.apiResponseTime || "N/A";
+
   const [stats, setStats] = useState({
     totalResellers: 0,
     todayTransactions: 0,
@@ -2099,7 +2104,7 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
   const [systemStatus, setSystemStatus] = useState({
     serverStatus: "Checking...",
     databaseStatus: "Checking...",
-    apiResponseTime: "N/A",
+    apiResponseTime: initialApiResponseTime,
     lastBackup: "N/A",
     memoryUsage: 0,
     cpuUsage: 0,
@@ -2119,6 +2124,21 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
     transactions: true,
     licenseStatus: true,
   });
+
+  const isMountedRef = useRef(true);
+  const silentUpdateRef = useRef(false);
+  const timeoutRef = useRef<number | null>(null);
+  const intervalRef = useRef<number | null>(null);
+  const currentApiResponseTimeRef = useRef<string>(initialApiResponseTime);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     const loadDashboardStats = async () => {
@@ -2148,12 +2168,23 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
       };
 
       // Parallelize all API calls for faster loading
-      const [systemStatusRes, statsRes, analyticsRes, licenseRes] = await Promise.allSettled([
+      const [systemStatusRes, statsRes, analyticsRes, licenseRes, healthCheckTime] = await Promise.allSettled([
         apiRequest("/admin/system-status", requestOptions, 1),
         apiRequest("/admin/dashboard-stats", requestOptions, 1),
         apiRequest("/admin/transactions/analytics", requestOptions, 1),
         apiRequest("/admin/license-status", requestOptions, 1),
+        measureHealthCheckResponseTime(),
       ]);
+
+      // Get health check response time
+      const apiResponseTime = healthCheckTime.status === "fulfilled" 
+        ? healthCheckTime.value 
+        : "N/A";
+
+      // Update ref and state only if value changed
+      if (apiResponseTime !== currentApiResponseTimeRef.current) {
+        currentApiResponseTimeRef.current = apiResponseTime;
+      }
 
       // Handle system status
       if (systemStatusRes.status === "fulfilled" && systemStatusRes.value.ok) {
@@ -2161,16 +2192,34 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
           const data = await systemStatusRes.value.json();
           if (data.success && data.status) {
             const status = data.status;
-            setSystemStatus({
-              serverStatus: status.server_status,
-              databaseStatus: status.database_status,
-              apiResponseTime: `${status.api_response_time}ms`,
-              lastBackup: status.last_backup || "Tidak ada backup",
-              memoryUsage: status.memory_usage || 0,
-              cpuUsage: status.cpu_usage || 0,
-              activeConnections: status.active_connections,
-              totalRequests: status.total_requests,
-              monthlyAppSuccessTrx: status.monthly_app_success_trx || 0,
+            setSystemStatus((prev) => {
+              // Check if anything actually changed to avoid unnecessary re-renders
+              const hasChanges = 
+                prev.serverStatus !== status.server_status ||
+                prev.databaseStatus !== status.database_status ||
+                prev.apiResponseTime !== apiResponseTime ||
+                prev.lastBackup !== (status.last_backup || "Tidak ada backup") ||
+                prev.memoryUsage !== (status.memory_usage || 0) ||
+                prev.cpuUsage !== (status.cpu_usage || 0) ||
+                prev.activeConnections !== status.active_connections ||
+                prev.totalRequests !== status.total_requests ||
+                prev.monthlyAppSuccessTrx !== (status.monthly_app_success_trx || 0);
+              
+              if (!hasChanges) {
+                return prev; // Return same object to prevent re-render
+              }
+              
+              return {
+                serverStatus: status.server_status,
+                databaseStatus: status.database_status,
+                apiResponseTime: apiResponseTime,
+                lastBackup: status.last_backup || "Tidak ada backup",
+                memoryUsage: status.memory_usage || 0,
+                cpuUsage: status.cpu_usage || 0,
+                activeConnections: status.active_connections,
+                totalRequests: status.total_requests,
+                monthlyAppSuccessTrx: status.monthly_app_success_trx || 0,
+              };
             });
             setStats((prevStats) => ({
               ...prevStats,
@@ -2276,6 +2325,33 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
         }));
       }
       setLoadingStates((prev) => ({ ...prev, licenseStatus: false }));
+
+      // Set up periodic silent updates
+      if (!silentUpdateRef.current) {
+        silentUpdateRef.current = true;
+        
+        // Initial silent update after 30 seconds
+        timeoutRef.current = setTimeout(async () => {
+          if (isMountedRef.current) {
+            const updatedTime = await measureHealthCheckResponseTime();
+            if (isMountedRef.current && updatedTime !== "N/A" && updatedTime !== currentApiResponseTimeRef.current) {
+              currentApiResponseTimeRef.current = updatedTime;
+              setSystemStatus((prev) => ({ ...prev, apiResponseTime: updatedTime }));
+            }
+          }
+        }, 30000);
+
+        // Periodic updates every 2 minutes
+        intervalRef.current = setInterval(async () => {
+          if (isMountedRef.current) {
+            const updatedTime = await measureHealthCheckResponseTime();
+            if (isMountedRef.current && updatedTime !== "N/A" && updatedTime !== currentApiResponseTimeRef.current) {
+              currentApiResponseTimeRef.current = updatedTime;
+              setSystemStatus((prev) => ({ ...prev, apiResponseTime: updatedTime }));
+            }
+          }
+        }, 120000); // Every 2 minutes
+      }
     };
 
     loadDashboardStats();
@@ -2311,12 +2387,23 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
     };
 
     // Parallelize all API calls for faster refresh
-    const [systemStatusRes, statsRes, analyticsRes, licenseRes] = await Promise.allSettled([
+    const [systemStatusRes, statsRes, analyticsRes, licenseRes, healthCheckTime] = await Promise.allSettled([
       apiRequest("/admin/system-status", requestOptions, 1),
       apiRequest("/admin/dashboard-stats", requestOptions, 1),
       apiRequest("/admin/transactions/analytics", requestOptions, 1),
       apiRequest("/admin/license-status", requestOptions, 1),
+      measureHealthCheckResponseTime(),
     ]);
+
+    // Get health check response time
+    const apiResponseTime = healthCheckTime.status === "fulfilled" 
+      ? healthCheckTime.value 
+      : "N/A";
+
+    // Update ref and state only if value changed
+    if (apiResponseTime !== currentApiResponseTimeRef.current) {
+      currentApiResponseTimeRef.current = apiResponseTime;
+    }
 
     // Handle system status
     if (systemStatusRes.status === "fulfilled" && systemStatusRes.value.ok) {
@@ -2324,16 +2411,34 @@ const DashboardOverview = forwardRef<{ refresh: () => void }, {
         const data = await systemStatusRes.value.json();
         if (data.success && data.status) {
           const status = data.status;
-          setSystemStatus({
-            serverStatus: status.server_status,
-            databaseStatus: status.database_status,
-            apiResponseTime: `${status.api_response_time}ms`,
-            lastBackup: status.last_backup || "Tidak ada backup",
-            memoryUsage: status.memory_usage || 0,
-            cpuUsage: status.cpu_usage || 0,
-            activeConnections: status.active_connections,
-            totalRequests: status.total_requests,
-            monthlyAppSuccessTrx: status.monthly_app_success_trx || 0,
+          setSystemStatus((prev) => {
+            // Check if anything actually changed to avoid unnecessary re-renders
+            const hasChanges = 
+              prev.serverStatus !== status.server_status ||
+              prev.databaseStatus !== status.database_status ||
+              prev.apiResponseTime !== apiResponseTime ||
+              prev.lastBackup !== (status.last_backup || "Tidak ada backup") ||
+              prev.memoryUsage !== (status.memory_usage || 0) ||
+              prev.cpuUsage !== (status.cpu_usage || 0) ||
+              prev.activeConnections !== status.active_connections ||
+              prev.totalRequests !== status.total_requests ||
+              prev.monthlyAppSuccessTrx !== (status.monthly_app_success_trx || 0);
+            
+            if (!hasChanges) {
+              return prev; // Return same object to prevent re-render
+            }
+            
+            return {
+              serverStatus: status.server_status,
+              databaseStatus: status.database_status,
+              apiResponseTime: apiResponseTime,
+              lastBackup: status.last_backup || "Tidak ada backup",
+              memoryUsage: status.memory_usage || 0,
+              cpuUsage: status.cpu_usage || 0,
+              activeConnections: status.active_connections,
+              totalRequests: status.total_requests,
+              monthlyAppSuccessTrx: status.monthly_app_success_trx || 0,
+            };
           });
           setStats((prevStats) => ({
             ...prevStats,

@@ -1732,24 +1732,9 @@ const ChatManagement = forwardRef<ChatManagementRef, ChatManagementProps>(
       );
     }
 
-    // Show license required message if not licensed
+    // Show blank screen if not licensed
     if (!licenseStatus?.is_licensed) {
-      return (
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center max-w-md">
-            <div className="text-amber-600 text-lg font-semibold mb-2">
-              Chat Management Not Licensed
-            </div>
-            <p className="text-gray-600 mb-4">
-              This feature requires a valid license. Please contact your
-              administrator to enable chat management for this server.
-            </p>
-            <div className="text-sm text-gray-500">
-              Server: {licenseStatus?.server_name || "Unknown"}
-            </div>
-          </div>
-        </div>
-      );
+      return <div></div>;
     }
 
 
