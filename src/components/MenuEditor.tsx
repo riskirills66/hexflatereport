@@ -1040,12 +1040,16 @@ export default function MenuEditor({ items, onSave, onClose, authSeed = '' }: Me
     }
   };
 
-  const handleAssetSelect = async (filename: string) => {
-    const url = await getPublicUrl(filename);
+  const handleAssetSelect = (url: string) => {
     if (url && editingNodeData) {
+      console.log('Asset selected, setting iconUrl to:', url);
       updateNode({ iconUrl: url });
+      setEditingNodeData(prev => {
+        if (!prev) return prev;
+        return { ...prev, iconUrl: url };
+      });
+      setShowAssetPicker(false);
     }
-    setShowAssetPicker(false);
   };
 
   // Check if there are unsaved changes
@@ -1957,10 +1961,11 @@ export default function MenuEditor({ items, onSave, onClose, authSeed = '' }: Me
               <AssetsManager 
                 authSeed={authSeed || localStorage.getItem('adminAuthSeed') || ''}
                 refreshTrigger={assetsRefreshTrigger}
+                onAssetSelect={handleAssetSelect}
               />
               <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-800 mb-2">
-                  <strong>Petunjuk:</strong> Klik tombol "Copy URL" pada asset yang ingin digunakan, lalu paste URL tersebut ke field Ikon, atau klik langsung pada asset untuk memilih.
+                  <strong>Petunjuk:</strong> Klik langsung pada gambar untuk memilih dan menerapkan ke field Ikon secara otomatis.
                 </p>
               </div>
             </div>

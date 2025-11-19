@@ -36,9 +36,10 @@ interface AssetInfo {
 interface AssetsManagerProps {
   authSeed: string;
   refreshTrigger?: number;
+  onAssetSelect?: (url: string) => void;
 }
 
-const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger }) => {
+const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger, onAssetSelect }) => {
   const [assets, setAssets] = useState<AssetInfo[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -499,11 +500,26 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 p-4">
             {assets.map((asset) => (
-              <div key={asset.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow group relative">
+              <div 
+                key={asset.id} 
+                className={`bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow group relative ${
+                  onAssetSelect ? 'cursor-pointer' : ''
+                }`}
+                onClick={async (e) => {
+                  // Only trigger selection if onAssetSelect is provided and click is not on a button
+                  if (onAssetSelect && !(e.target as HTMLElement).closest('button')) {
+                    const url = await getPublicUrl(asset.filename);
+                    onAssetSelect(url);
+                  }
+                }}
+              >
                 {/* Selection Checkbox */}
                 <div className="absolute top-2 left-2 z-10">
                   <button
-                    onClick={() => toggleAssetSelection(asset.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleAssetSelection(asset.id);
+                    }}
                     className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
                       selectedAssets.has(asset.id)
                         ? 'bg-blue-600 border-blue-600 text-white'
@@ -549,7 +565,10 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
                   <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => setShowPreview(asset)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowPreview(asset);
+                        }}
                         className="p-2 bg-white bg-opacity-90 text-gray-700 rounded-full hover:bg-opacity-100 transition-colors"
                         title="Preview"
                       >
@@ -557,7 +576,10 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
                       </button>
                       
                       <button
-                        onClick={() => copyToClipboard(asset.filename)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyToClipboard(asset.filename);
+                        }}
                         className="p-2 bg-white bg-opacity-90 text-gray-700 rounded-full hover:bg-opacity-100 transition-colors"
                         title="Copy URL"
                       >
@@ -565,7 +587,8 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
                       </button>
                       
                       <button
-                        onClick={async () => {
+                        onClick={async (e) => {
+                          e.stopPropagation();
                           const url = await getPublicUrl(asset.filename);
                           window.open(url, '_blank');
                         }}
@@ -576,7 +599,10 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
                       </button>
                       
                       <button
-                        onClick={() => handleDelete(asset.id, asset.original_name)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(asset.id, asset.original_name);
+                        }}
                         className="p-2 bg-white bg-opacity-90 text-red-600 rounded-full hover:bg-opacity-100 transition-colors"
                         title="Delete"
                       >
@@ -608,12 +634,27 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
         ) : (
           <div className="divide-y divide-gray-200">
             {assets.map((asset) => (
-              <div key={asset.id} className="p-4 hover:bg-gray-50 transition-colors">
+              <div 
+                key={asset.id} 
+                className={`p-4 hover:bg-gray-50 transition-colors ${
+                  onAssetSelect ? 'cursor-pointer' : ''
+                }`}
+                onClick={async (e) => {
+                  // Only trigger selection if onAssetSelect is provided and click is not on a button
+                  if (onAssetSelect && !(e.target as HTMLElement).closest('button')) {
+                    const url = await getPublicUrl(asset.filename);
+                    onAssetSelect(url);
+                  }
+                }}
+              >
                 <div className="flex items-center gap-4">
                   {/* Selection Checkbox */}
                   <div className="flex-shrink-0">
                     <button
-                      onClick={() => toggleAssetSelection(asset.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleAssetSelection(asset.id);
+                      }}
                       className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
                         selectedAssets.has(asset.id)
                           ? 'bg-blue-600 border-blue-600 text-white'
@@ -659,7 +700,10 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
 
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setShowPreview(asset)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowPreview(asset);
+                      }}
                       className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
                       title="Preview"
                     >
@@ -667,7 +711,10 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
                     </button>
                     
                     <button
-                      onClick={() => copyToClipboard(asset.filename)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyToClipboard(asset.filename);
+                      }}
                       className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
                       title="Copy URL"
                     >
@@ -675,7 +722,8 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
                     </button>
                     
                     <button
-                      onClick={async () => {
+                      onClick={async (e) => {
+                        e.stopPropagation();
                         const url = await getPublicUrl(asset.filename);
                         window.open(url, '_blank');
                       }}
@@ -686,7 +734,10 @@ const AssetsManager: React.FC<AssetsManagerProps> = ({ authSeed, refreshTrigger 
                     </button>
                     
                     <button
-                      onClick={() => handleDelete(asset.id, asset.original_name)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(asset.id, asset.original_name);
+                      }}
                       className="p-2 text-red-400 hover:text-red-600 transition-colors"
                       title="Delete"
                     >
