@@ -2195,6 +2195,7 @@ const SystemSettings = forwardRef<SystemSettingsRef, SystemSettingsProps>(
     };
 
     const EXCLUDED_KEYS = [
+      "check_sn_timeout",
       "verificationFeature",
       "exchangePoinToSaldo",
       "permissionIntroFeatureEnabled",
