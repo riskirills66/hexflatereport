@@ -96,6 +96,86 @@ interface CutoffConfig {
   cutoff_end: string;
 }
 
+interface DynamicPatternRowProps {
+  originalKey: string;
+  title: string;
+  pattern: string;
+  onUpdateKey: (newKey: string) => void;
+  onUpdateTitle: (value: string) => void;
+  onUpdatePattern: (value: string) => void;
+  onDelete: () => void;
+}
+
+const DynamicPatternRow = ({
+  originalKey,
+  title,
+  pattern,
+  onUpdateKey,
+  onUpdateTitle,
+  onUpdatePattern,
+  onDelete
+}: DynamicPatternRowProps) => {
+  const [localKey, setLocalKey] = useState(originalKey);
+
+  useEffect(() => {
+    setLocalKey(originalKey);
+  }, [originalKey]);
+
+  return (
+    <div className="flex gap-3 p-2 bg-white rounded border border-gray-200 hover:bg-gray-50">
+      <div className="flex-shrink-0 w-1/5 flex items-start">
+        <input
+          type="text"
+          value={localKey}
+          onChange={(e) => {
+            const newKey = e.target.value.replace(/\s+/g, '');
+            setLocalKey(newKey);
+          }}
+          onBlur={(e) => {
+            const trimmedKey = e.target.value.replace(/\s+/g, '');
+            setLocalKey(trimmedKey || originalKey);
+            if (trimmedKey && trimmedKey !== originalKey) {
+              onUpdateKey(trimmedKey);
+            }
+          }}
+          className="w-full px-2 py-1 text-xs font-mono border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          placeholder="Key pattern"
+        />
+      </div>
+      <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+      <div className="flex-1 min-w-0 flex items-start">
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => onUpdateTitle(e.target.value)}
+          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          placeholder="Judul pattern"
+        />
+      </div>
+      <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+      <div className="flex-1 min-w-0 flex items-start">
+        <input
+          type="text"
+          value={pattern}
+          onChange={(e) => onUpdatePattern(e.target.value)}
+          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          placeholder="Pattern regex"
+        />
+      </div>
+      <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
+      <div className="flex-shrink-0 w-20 flex items-start">
+        <button
+          onClick={onDelete}
+          className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+          title="Hapus pattern"
+        >
+          Hapus
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementProps>(
   ({ authSeed, onNavigate }, ref) => {
   const [config, setConfig] = useState<SecurityConfig | null>(null);
@@ -1155,104 +1235,6 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
             className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
             placeholder="contoh: 085156880420"
           />
-        </div>
-      </div>
-    );
-  };
-
-  // Component for dynamic pattern row to maintain local state
-  const DynamicPatternRow = ({
-    originalKey,
-    title,
-    pattern,
-    onUpdateKey,
-    onUpdateTitle,
-    onUpdatePattern,
-    onDelete
-  }: {
-    originalKey: string;
-    title: string;
-    pattern: string;
-    onUpdateKey: (newKey: string) => void;
-    onUpdateTitle: (value: string) => void;
-    onUpdatePattern: (value: string) => void;
-    onDelete: () => void;
-  }) => {
-    const [localKey, setLocalKey] = useState(originalKey);
-
-    // Update local key when original key changes (from external updates)
-    useEffect(() => {
-      setLocalKey(originalKey);
-    }, [originalKey]);
-
-    return (
-      <div
-        className="flex gap-3 p-2 bg-white rounded border border-gray-200 hover:bg-gray-50"
-      >
-        {/* Key */}
-        <div className="flex-shrink-0 w-1/5 flex items-start">
-          <input
-            type="text"
-            value={localKey}
-            onChange={(e) => {
-              const newKey = e.target.value.replace(/\s+/g, '');
-              setLocalKey(newKey);
-            }}
-            onBlur={(e) => {
-              const trimmedKey = e.target.value.replace(/\s+/g, '');
-              setLocalKey(trimmedKey);
-              if (trimmedKey !== originalKey && trimmedKey !== '') {
-                onUpdateKey(trimmedKey);
-              } else if (trimmedKey === '') {
-                // If empty, revert to original
-                setLocalKey(originalKey);
-              }
-            }}
-            className="w-full px-2 py-1 text-xs font-mono border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            placeholder="Key pattern"
-          />
-        </div>
-        
-        {/* Separator */}
-        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
-        
-        {/* Title */}
-        <div className="flex-1 min-w-0 flex items-start">
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => onUpdateTitle(e.target.value)}
-            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            placeholder="Judul pattern"
-          />
-        </div>
-        
-        {/* Separator */}
-        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
-        
-        {/* Pattern */}
-        <div className="flex-1 min-w-0 flex items-start">
-          <input
-            type="text"
-            value={pattern}
-            onChange={(e) => onUpdatePattern(e.target.value)}
-            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            placeholder="Pattern regex"
-          />
-        </div>
-        
-        {/* Separator */}
-        <div className="flex-shrink-0 text-gray-400 flex items-start pt-0.5">|</div>
-        
-        {/* Actions */}
-        <div className="flex-shrink-0 w-20 flex items-start">
-          <button
-            onClick={onDelete}
-            className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-            title="Hapus pattern"
-          >
-            Hapus
-          </button>
         </div>
       </div>
     );
@@ -2319,12 +2301,12 @@ const SecurityManagement = forwardRef<SecurityManagementRef, SecurityManagementP
                           </div>
                         </div>
                         <div className="space-y-2">
-                          {dynamicPatternOrder.map((key, index) => {
+                          {dynamicPatternOrder.map((key) => {
                             const pattern = config?.outbox_patterns?.dynamic_patterns?.[key];
                             if (!pattern) return null;
                             return (
                               <DynamicPatternRow
-                                key={`dynamic-pattern-${index}`}
+                                key={`dynamic-pattern-${key}`}
                                 originalKey={key}
                                 title={pattern.title}
                                 pattern={pattern.pattern}
