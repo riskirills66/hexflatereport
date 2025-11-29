@@ -3,6 +3,7 @@ import { ContentSection, MenuItem, ScreenConfig } from '../types';
 import { Trees, Image } from 'lucide-react';
 import MenuEditor from './MenuEditor';
 import BannerEditor from './BannerEditor';
+import CardsEditor from './CardsEditor';
 
 interface PropertyPanelProps {
   widget: ContentSection | null;
@@ -13,6 +14,7 @@ interface PropertyPanelProps {
 const PropertyPanel: React.FC<PropertyPanelProps> = ({ widget, onUpdateWidget, screen }) => {
   const [showMenuEditor, setShowMenuEditor] = useState(false);
   const [showBannerEditor, setShowBannerEditor] = useState(false);
+  const [showCardsEditor, setShowCardsEditor] = useState(false);
 
   if (!widget) {
     return (
@@ -643,12 +645,109 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ widget, onUpdateWidget, s
     </div>
   );
 
+  const renderCardsProperties = () => (
+    <div className="property-section">
+      <h3 className="text-lg font-semibold mb-3">Properti Cards</h3>
+      
+      <div className="form-group">
+        <label className="form-label text-sm">Layout</label>
+        <select
+          className="form-input text-sm py-2"
+          value={widget.layout || 'grid'}
+          onChange={(e) => handleUpdate({ layout: e.target.value as any })}
+        >
+          <option value="grid">Grid</option>
+          <option value="list">List</option>
+        </select>
+      </div>
+      
+      {widget.layout === 'grid' && (
+        <div className="form-group">
+          <label className="form-label text-sm">Cross Axis Count</label>
+          <input
+            type="number"
+            className="form-input text-sm py-2"
+            value={widget.crossAxisCount || 2}
+            onChange={(e) => handleUpdate({ crossAxisCount: parseInt(e.target.value) || 2 })}
+            min="1"
+            max="4"
+          />
+        </div>
+      )}
+      
+      {(widget.layout === 'grid') && (
+        <div className="form-group">
+          <label className="form-label text-sm">Aspect Ratio</label>
+          <input
+            type="number"
+            className="form-input text-sm py-2"
+            value={widget.aspectRatio || 1.6}
+            onChange={(e) => handleUpdate({ aspectRatio: parseFloat(e.target.value) || 1.6 })}
+            min="0.5"
+            max="3"
+            step="0.1"
+          />
+        </div>
+      )}
+      
+      <div className="form-group">
+        <label className="form-label text-sm">Spacing</label>
+        <input
+          type="number"
+          className="form-input text-sm py-2"
+          value={widget.spacing || 16}
+          onChange={(e) => handleUpdate({ spacing: parseInt(e.target.value) || 16 })}
+          min="0"
+          max="50"
+        />
+      </div>
+
+      {/* Cards Management */}
+      <div className="mb-4">
+        <div className="text-center p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+          <div className="text-2xl mb-2">🃏</div>
+          <h4 className="text-base font-semibold text-gray-700 mb-1">Kelola Cards</h4>
+          <p className="text-xs text-gray-600 mb-3 leading-relaxed">
+            Tambah, edit, dan hapus card individual dengan editor yang mudah digunakan
+          </p>
+          
+          <button
+            onClick={() => setShowCardsEditor(true)}
+            className="flex items-center gap-1 px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm"
+          >
+            <Image size={16} />
+            Kelola Cards
+          </button>
+        </div>
+      </div>
+
+      {/* Quick Info */}
+      <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+        <h5 className="text-sm font-medium text-green-800 mb-2">Informasi Cards Saat Ini</h5>
+        <div className="text-xs text-green-700 space-y-1">
+          <div>• {widget.cards?.length || 0} card</div>
+          <div>• Layout: {widget.layout || 'grid'}</div>
+          {widget.layout === 'grid' && <div>• Grid columns: {widget.crossAxisCount || 2}</div>}
+          {widget.aspectRatio && <div>• Aspect ratio: {widget.aspectRatio}</div>}
+          <div>• Spacing: {widget.spacing || 16}px</div>
+        </div>
+      </div>
+
+      <div className="text-gray-600 text-sm mt-4">
+        <p>Widget cards menampilkan konten yang dapat disesuaikan dengan berbagai opsi.</p>
+        <p className="mt-2">Gunakan editor cards untuk mengatur konten individual, tombol, dan elemen teks.</p>
+      </div>
+    </div>
+  );
+
   const getPropertyEditor = () => {
     switch (widget.id) {
       case 'title':
         return renderTitleProperties();
       case 'banner_slider':
         return renderBannerSliderProperties();
+      case 'cards':
+        return renderCardsProperties();
       case 'history':
         return renderHistoryProperties();
       default:
@@ -706,6 +805,18 @@ const PropertyPanel: React.FC<PropertyPanelProps> = ({ widget, onUpdateWidget, s
             setShowBannerEditor(false);
           }}
           onClose={() => setShowBannerEditor(false)}
+        />
+      )}
+      {showCardsEditor && (
+        <CardsEditor
+          widget={widget}
+          menuItems={getAllMenuItems()}
+          onSave={(updates) => {
+            console.log('PropertyPanel: Received updates from CardsEditor:', updates);
+            handleUpdate(updates);
+            setShowCardsEditor(false);
+          }}
+          onClose={() => setShowCardsEditor(false)}
         />
       )}
     </>

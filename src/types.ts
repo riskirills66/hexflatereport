@@ -60,7 +60,7 @@ export interface HeaderBackground {
 }
 
 export interface ContentSection {
-  id: string; // Widget type identifier (e.g., "title", "banner_slider")
+  id: string; // Widget type identifier (e.g., "title", "banner_slider", "cards")
   instanceId: string; // Unique instance identifier for selection
   title?: TitleConfig;
   layoutVariant?: "default" | "monocle";
@@ -74,6 +74,7 @@ export interface ContentSection {
   showIndicators?: boolean;
   showFade?: boolean;
   banners?: Banner[];
+  cards?: Card[];
   items?: MenuItem[];
   url?: string;
   enableJavaScript?: boolean;
@@ -83,6 +84,10 @@ export interface ContentSection {
   margin?: Margin;
   frame?: Frame; // Frame configuration for icon groups
   count?: number; // Number of items to display (for history widgets)
+  // Cards specific properties
+  layout?: "grid" | "list";
+  crossAxisCount?: number;
+  aspectRatio?: number;
 }
 
 export interface TitleConfig {
@@ -115,6 +120,40 @@ export interface SubmenuConfig {
   submenuStyle: "fullScreen" | "bottomSheet";
   submenuLayout: "grid" | "list";
   items: MenuItem[];
+}
+
+export interface Card {
+  title?: string;
+  subtitle?: string;
+  description?: string;
+  backgroundImage?: string;
+  backgroundColor?: string;
+  borderRadius?: number;
+  route?: string;
+  routeArgs?: Record<string, any>;
+  url?: string;
+  buttons?: CardButton[];
+  textElements?: CardTextElement[];
+  clonedFromMenuId?: string; // ID of the menu item this card is cloned from
+}
+
+export interface CardButton {
+  label: string;
+  route: string;
+  routeArgs?: Record<string, any>;
+  backgroundColor?: string;
+  textColor?: string;
+  borderRadius?: number;
+}
+
+export interface CardTextElement {
+  type: 'profile_name' | 'balance' | 'commission' | 'label';
+  text: string;
+  textStyle?: {
+    fontSize?: number;
+    fontWeight?: string;
+    color?: string;
+  };
 }
 
 export interface Banner {

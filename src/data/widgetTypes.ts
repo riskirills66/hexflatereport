@@ -1,4 +1,4 @@
-import { WidgetType } from '../types';
+import { WidgetType, ContentSection } from '../types';
 
 export const WIDGET_TYPES: WidgetType[] = [
   {
@@ -42,6 +42,48 @@ export const WIDGET_TYPES: WidgetType[] = [
           titlePosition: { bottom: 16, left: 16 },
           padding: { all: 12 },
           borderRadius: 8
+        }
+      ]
+    }
+  },
+  {
+    id: 'cards',
+    name: 'Cards Widget',
+    icon: '🃏',
+    description: 'Tampilkan kartu statis yang dapat disesuaikan dengan tombol dan teks elemen',
+    defaultConfig: {
+      id: 'cards',
+      order: 5,
+      layout: 'grid',
+      crossAxisCount: 2,
+      aspectRatio: 1.6,
+      spacing: 16,
+      cards: [
+        {
+          title: 'Card Title',
+          subtitle: 'Card Subtitle',
+          description: 'Card description text',
+          backgroundColor: '#f3f4f6',
+          borderRadius: 12,
+          textElements: [
+            {
+              type: 'profile_name',
+              text: 'User Name',
+              textStyle: {
+                fontSize: 16,
+                fontWeight: '600'
+              }
+            }
+          ],
+          buttons: [
+            {
+              label: 'Action',
+              route: '/home',
+              backgroundColor: '#3b82f6',
+              textColor: '#ffffff',
+              borderRadius: 8
+            }
+          ]
         }
       ]
     }
